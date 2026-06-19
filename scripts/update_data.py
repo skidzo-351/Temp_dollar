@@ -1,501 +1,320 @@
 #!/usr/bin/env python3
 """
 SGOV 3단계 로테이션 전략 - 일간 신호 계산 스크립트
-신고가 기반 회귀선 + 청산 0% 방식
-
-매일 GitHub Actions에 의해 실행되어 data.json을 갱신합니다.
+신고가 기반 회귀선 + 청산 0% 방식  (수정: 롤링 신고가 + 최근 REG_WIN 구간)
 """
+import json, os, urllib.request, time, math
+from datetime import datetime
 
-import json
-import os
-import urllib.request
-import time
-from datetime import datetime, timedelta
-import math
+# ─── 전략 파라미터 ───────────────────────────────────────────
+REG_WIN    = 252   # 12개월 거래일 기준
+ENTRY1     = -5.0
+ENTRY2     = -10.0
+ENTRY3     = -20.0
+EXIT_THR   = 0.0   # 회귀선 괴리율 0% = 복귀 시점
+STOP_LOSS  = -12.0 # 진입가 대비 손절
 
+ASSETS = {
+    'SPY': {'stooq':'spy.us','yahoo':'SPY','name':'S&P 500 (SPY)'},
+    'QQQ': {'stooq':'qqq.us','yahoo':'QQQ','name':'Nasdaq 100 (QQQ)'},
+}
 
-# ─────────────────────────────────────────────────────────────
-# 1. 데이터 수집 (Stooq - 무료, API key 불필요)
-# ─────────────────────────────────────────────────────────────
-
-def fetch_stooq_daily(symbol, days=900):
-    """
-    Stooq에서 일간 종가 데이터 수집
-    symbol: 'spy.us', 'qqq.us' 등
-    """
-    url = f"https://stooq.com/q/d/l/?s={symbol}&i=d"
-    headers = {
+# ─── 데이터 수집 ─────────────────────────────────────────────
+def _stooq(symbol, domain='com', days=900):
+    url = f"https://stooq.{domain}/q/d/l/?s={symbol}&i=d"
+    req = urllib.request.Request(url, headers={
         'User-Agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                        'AppleWebKit/537.36 (KHTML, like Gecko) '
-                        'Chrome/120.0.0.0 Safari/537.36'),
+                       'AppleWebKit/537.36 Chrome/120.0 Safari/537.36'),
         'Accept': 'text/csv,*/*',
-    }
-    req = urllib.request.Request(url, headers=headers)
-
+    })
     try:
-        with urllib.request.urlopen(req, timeout=15) as response:
-            text = response.read().decode('utf-8')
+        with urllib.request.urlopen(req, timeout=15) as r:
+            text = r.read().decode('utf-8')
     except Exception as e:
-        print(f"  ⚠️  Stooq 요청 실패 ({symbol}): {e}")
+        print(f"  ⚠ stooq.{domain} ({symbol}): {e}")
         return None
-
     lines = text.strip().split('\n')
-    if len(lines) < 2:
-        return None
+    if len(lines) < 2: return None
+    hdr = lines[0].split(',')
+    try: di, ci = hdr.index('Date'), hdr.index('Close')
+    except ValueError: return None
+    recs = []
+    for ln in lines[1:]:
+        p = ln.split(',')
+        try: recs.append({'date': p[di], 'close': float(p[ci])})
+        except: pass
+    return recs[-days:] if len(recs) > days else recs
 
-    header = lines[0].split(',')
-    try:
-        date_idx = header.index('Date')
-        close_idx = header.index('Close')
-    except ValueError:
-        return None
-
-    records = []
-    for line in lines[1:]:
-        parts = line.split(',')
-        if len(parts) <= max(date_idx, close_idx):
-            continue
-        try:
-            d = parts[date_idx]
-            c = float(parts[close_idx])
-            records.append({'date': d, 'close': c})
-        except (ValueError, IndexError):
-            continue
-
-    # 최근 N일만 사용
-    return records[-days:] if len(records) > days else records
-
-
-def fetch_yahoo_fallback(symbol, days=900):
-    """
-    Stooq 실패시 Yahoo Finance 폴백
-    """
+def _yahoo(symbol, days=900):
     end = int(time.time())
-    start = end - days * 86400 * 2  # 여유있게 가져옴 (휴장일 고려)
+    start = end - days * 86400 * 2
     url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
            f"?period1={start}&period2={end}&interval=1d")
-    headers = {
+    req = urllib.request.Request(url, headers={
         'User-Agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                        'AppleWebKit/537.36 (KHTML, like Gecko) '
-                        'Chrome/120.0.0.0 Safari/537.36'),
+                       'AppleWebKit/537.36 Chrome/120.0 Safari/537.36'),
         'Accept': 'application/json',
-    }
-    req = urllib.request.Request(url, headers=headers)
-
+    })
     try:
-        with urllib.request.urlopen(req, timeout=15) as response:
-            data = json.loads(response.read().decode('utf-8'))
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.loads(r.read().decode('utf-8'))
+        res = data['chart']['result'][0]
+        ts  = res['timestamp']
+        cl  = res['indicators']['quote'][0]['close']
+        recs = [{'date': datetime.utcfromtimestamp(t).strftime('%Y-%m-%d'), 'close': round(c, 4)}
+                for t, c in zip(ts, cl) if c is not None]
+        return recs[-days:] if len(recs) > days else recs
     except Exception as e:
-        print(f"  ⚠️  Yahoo 요청 실패 ({symbol}): {e}")
+        print(f"  ⚠ yahoo ({symbol}): {e}")
         return None
 
-    try:
-        result = data['chart']['result'][0]
-        timestamps = result['timestamp']
-        closes = result['indicators']['quote'][0]['close']
-    except (KeyError, IndexError, TypeError):
-        return None
-
-    records = []
-    for ts, c in zip(timestamps, closes):
-        if c is None:
-            continue
-        d = datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d')
-        records.append({'date': d, 'close': round(c, 4)})
-
-    return records[-days:] if len(records) > days else records
-
-
-def fetch_stooq_alt(symbol, days=900):
-    """
-    Stooq 대체 엔드포인트 (다른 도메인 패턴)
-    """
-    url = f"https://stooq.pl/q/d/l/?s={symbol}&i=d"
-    headers = {
-        'User-Agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                        'AppleWebKit/537.36 (KHTML, like Gecko) '
-                        'Chrome/120.0.0.0 Safari/537.36'),
-        'Accept': 'text/csv,*/*',
-    }
-    req = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=15) as response:
-            text = response.read().decode('utf-8')
-    except Exception as e:
-        print(f"  ⚠️  Stooq(alt) 요청 실패 ({symbol}): {e}")
-        return None
-
-    lines = text.strip().split('\n')
-    if len(lines) < 2:
-        return None
-    header = lines[0].split(',')
-    try:
-        date_idx = header.index('Date')
-        close_idx = header.index('Close')
-    except ValueError:
-        return None
-
-    records = []
-    for line in lines[1:]:
-        parts = line.split(',')
-        if len(parts) <= max(date_idx, close_idx):
-            continue
-        try:
-            records.append({'date': parts[date_idx], 'close': float(parts[close_idx])})
-        except (ValueError, IndexError):
-            continue
-    return records[-days:] if len(records) > days else records
-
-
-def get_price_history(symbol_stooq, symbol_yahoo, days=900):
-    """Stooq(.com) -> Stooq(.pl) -> Yahoo 순으로 폴백"""
-    print(f"  데이터 수집 중: {symbol_stooq} ...")
-    data = fetch_stooq_daily(symbol_stooq, days)
-    if data and len(data) > 50:
-        print(f"    ✓ Stooq(.com)에서 {len(data)}개 레코드 수집")
-        return data
-
-    print(f"  Stooq(.com) 실패, Stooq(.pl)로 재시도 ...")
-    data = fetch_stooq_alt(symbol_stooq, days)
-    if data and len(data) > 50:
-        print(f"    ✓ Stooq(.pl)에서 {len(data)}개 레코드 수집")
-        return data
-
-    print(f"  Stooq 전체 실패, Yahoo로 재시도: {symbol_yahoo} ...")
-    data = fetch_yahoo_fallback(symbol_yahoo, days)
-    if data and len(data) > 50:
-        print(f"    ✓ Yahoo에서 {len(data)}개 레코드 수집")
-        return data
-
-    print(f"    ✗ 데이터 수집 실패: {symbol_stooq}/{symbol_yahoo}")
+def fetch(symbol_s, symbol_y, days=900):
+    for src in [lambda: _stooq(symbol_s,'com',days),
+                lambda: _stooq(symbol_s,'pl',days),
+                lambda: _yahoo(symbol_y, days)]:
+        d = src()
+        if d and len(d) > 50:
+            return d
     return []
 
+# ─── 선형회귀 ────────────────────────────────────────────────
+def linreg(vals):
+    n = len(vals)
+    if n < 2: return 0.0, vals[0] if vals else 0.0
+    xm = (n - 1) / 2.0
+    ym = sum(vals) / n
+    num = sum((i - xm) * (v - ym) for i, v in enumerate(vals))
+    den = sum((i - xm) ** 2 for i in range(n))
+    slope = num / den if den else 0.0
+    return slope, ym - slope * xm
 
-# ─────────────────────────────────────────────────────────────
-# 2. 선형회귀 + 신고가 기반 신호 계산
-# ─────────────────────────────────────────────────────────────
-
-def linreg(values):
-    """단순 선형회귀: y = a + b*x, x = 0..n-1"""
-    n = len(values)
-    if n < 2:
-        return 0.0, values[0] if values else 0.0
-    x_mean = (n - 1) / 2.0
-    y_mean = sum(values) / n
-    num = sum((i - x_mean) * (v - y_mean) for i, v in enumerate(values))
-    den = sum((i - x_mean) ** 2 for i in range(n))
-    if den == 0:
-        return 0.0, y_mean
-    slope = num / den
-    intercept = y_mean - slope * x_mean
-    return slope, intercept
-
-
-REG_WIN_DAYS = 252  # 12개월(거래일 기준)
-ENTRY1, ENTRY2, ENTRY3 = -5.0, -10.0, -20.0
-EXIT_THR = 0.0  # 신고가 기반 + 청산 0%
-STOP_LOSS_PCT = -12.0  # 진입가 대비 손절
-
-
-def calculate_signal_series(closes):
+# ─── 신호 계산 (핵심 수정) ───────────────────────────────────
+def calc_signals(closes):
     """
-    신고가 기반 회귀선 + 3단계 진입/청산 시뮬레이션
-    closes: 일간 종가 리스트 (오래된 -> 최신 순)
-
-    return: 전체 거래기록, 각 일자별 상태(dollar_pos, divergence, predicted, peak)
+    롤링 12M 회귀선 기반 3단계 진입/청산
+    - 매 시점 최근 REG_WIN 구간으로 회귀선 계산 (t_offset 폭발 방지)
+    - 신고가(peak)는 SAFE 상태에서만 갱신 (표시용)
     """
-    n = len(closes)
-    if n < 30:
+    N = len(closes)
+    if N < REG_WIN + 5:
         return [], []
 
-    dollar_pos = 0.0
+    dollar_pos   = 0.0
+    entry_price  = None
     running_peak = closes[0]
-    peak_idx = 0
-    entry_price = None
+    trades       = []
+    states       = []
 
-    trades = []
-    daily_states = []
-
-    for i in range(1, n):
-        # SAFE 상태일 때만 신고가 갱신
+    for i in range(REG_WIN, N):
+        # SAFE 상태에서만 신고가 갱신
         if dollar_pos == 0.0 and closes[i] > running_peak:
             running_peak = closes[i]
-            peak_idx = i
 
-        reg_start = max(0, peak_idx - REG_WIN_DAYS)
-        reg_end = peak_idx + 1
-        window = closes[reg_start:reg_end]
-
-        if len(window) < 2:
-            daily_states.append({
-                'i': i, 'close': closes[i], 'predicted': None,
-                'divergence': None, 'position': dollar_pos,
-                'peak': running_peak, 'peak_idx': peak_idx
-            })
-            continue
-
+        # 롤링 회귀선: 과거 REG_WIN 봉 → 다음 봉 예측
+        window = closes[i - REG_WIN: i]
         slope, intercept = linreg(window)
-        t_offset = i - reg_start
-        predicted = intercept + slope * t_offset
+        predicted = intercept + slope * REG_WIN   # x = REG_WIN → 다음날
 
         if predicted == 0:
-            daily_states.append({
-                'i': i, 'close': closes[i], 'predicted': None,
-                'divergence': None, 'position': dollar_pos,
-                'peak': running_peak, 'peak_idx': peak_idx
-            })
+            states.append({'i': i, 'close': closes[i], 'predicted': None,
+                           'divergence': None, 'position': dollar_pos,
+                           'peak': running_peak})
             continue
 
         divergence = (closes[i] - predicted) / predicted * 100.0
-
         action = None
-        # 손절 체크 (최우선)
-        if dollar_pos > 0 and entry_price is not None:
-            dd_from_entry = (closes[i] - entry_price) / entry_price * 100.0
-            if dd_from_entry <= STOP_LOSS_PCT:
+
+        # 손절 우선
+        if dollar_pos > 0 and entry_price:
+            if (closes[i] - entry_price) / entry_price * 100.0 <= STOP_LOSS:
                 action = 'STOP_LOSS'
-                dollar_pos = 0.0
-                entry_price = None
-                running_peak = closes[i]
-                peak_idx = i
+                dollar_pos = 0.0; entry_price = None
 
         if action is None:
             if dollar_pos == 0.0:
                 if divergence <= ENTRY1:
-                    dollar_pos = 0.35
-                    entry_price = closes[i]
-                    action = 'ENTRY1'
+                    dollar_pos = 0.35; entry_price = closes[i]; action = 'ENTRY1'
             elif dollar_pos == 0.35:
-                if divergence <= ENTRY2:
-                    dollar_pos = 0.70
-                    action = 'ENTRY2'
-                elif divergence >= EXIT_THR:
-                    dollar_pos = 0.0
-                    entry_price = None
-                    running_peak = closes[i]
-                    peak_idx = i
-                    action = 'EXIT'
+                if   divergence <= ENTRY2:    dollar_pos = 0.70; action = 'ENTRY2'
+                elif divergence >= EXIT_THR:  dollar_pos = 0.0; entry_price = None; action = 'EXIT'
             elif dollar_pos == 0.70:
-                if divergence <= ENTRY3:
-                    dollar_pos = 1.0
-                    action = 'ENTRY3'
-                elif divergence >= EXIT_THR:
-                    dollar_pos = 0.0
-                    entry_price = None
-                    running_peak = closes[i]
-                    peak_idx = i
-                    action = 'EXIT'
+                if   divergence <= ENTRY3:    dollar_pos = 1.0; action = 'ENTRY3'
+                elif divergence >= EXIT_THR:  dollar_pos = 0.0; entry_price = None; action = 'EXIT'
             elif dollar_pos == 1.0:
-                if divergence >= EXIT_THR:
-                    dollar_pos = 0.0
-                    entry_price = None
-                    running_peak = closes[i]
-                    peak_idx = i
-                    action = 'EXIT'
+                if divergence >= EXIT_THR:    dollar_pos = 0.0; entry_price = None; action = 'EXIT'
 
         if action:
-            trades.append({
-                'index': i, 'type': action, 'divergence': round(divergence, 2),
-                'price': closes[i], 'position_after': dollar_pos
-            })
+            trades.append({'index': i, 'type': action,
+                           'divergence': round(divergence, 2),
+                           'price': closes[i],
+                           'position_after': dollar_pos})
 
-        daily_states.append({
-            'i': i, 'close': closes[i], 'predicted': round(predicted, 4),
-            'divergence': round(divergence, 4), 'position': dollar_pos,
-            'peak': running_peak, 'peak_idx': peak_idx
-        })
+        states.append({'i': i, 'close': closes[i],
+                       'predicted': round(predicted, 4),
+                       'divergence': round(divergence, 4),
+                       'position': dollar_pos,
+                       'peak': running_peak})
 
-    return trades, daily_states
+    return trades, states
 
+# ─── 포트폴리오 시뮬 ─────────────────────────────────────────
+def backtest(states, krw_daily=0.035/252):
+    port = [100.0]
+    for k in range(1, len(states)):
+        prev = states[k-1]
+        cur  = states[k]
+        dr   = (cur['close'] / prev['close'] - 1) if prev['close'] else 0
+        port.append(port[-1] * (1 + 0.20 * prev['position'] * dr + 0.80 * krw_daily))
+    return port
 
-def backtest_portfolio(daily_states, dates, krw_annual_return=0.035):
-    """전체 포트폴리오(원화80%+달러20%) 가치 추이 계산"""
-    krw_monthly = krw_annual_return / 252  # 일간 근사
-    port = 100.0
-    series = [100.0]
-
-    for idx in range(1, len(daily_states)):
-        prev_pos = daily_states[idx - 1]['position']
-        prev_close = daily_states[idx - 1]['close']
-        curr_close = daily_states[idx]['close']
-        dollar_ret = (curr_close / prev_close - 1) if prev_close else 0
-        port *= (1 + 0.20 * (prev_pos * dollar_ret) + 0.80 * krw_monthly)
-        series.append(port)
-
-    return series
-
-
-def compute_max_drawdown(series):
-    peak = series[0] if series else 100.0
-    mdd = 0.0
+def mdd(series):
+    peak = series[0]; worst = 0.0
     for v in series:
-        if v > peak:
-            peak = v
-        dd = (peak - v) / peak * 100 if peak > 0 else 0
-        mdd = max(mdd, dd)
-    return mdd
+        if v > peak: peak = v
+        worst = max(worst, (peak - v) / peak * 100 if peak else 0)
+    return worst
 
-
-# ─────────────────────────────────────────────────────────────
-# 3. 메인 실행
-# ─────────────────────────────────────────────────────────────
-
-ASSETS = {
-    'SPY': {'stooq': 'spy.us', 'yahoo': 'SPY', 'name': 'S&P 500 (SPY)'},
-    'QQQ': {'stooq': 'qqq.us', 'yahoo': 'QQQ', 'name': 'Nasdaq 100 (QQQ)'},
-}
-
-
-def build_asset_payload(ticker, cfg):
-    print(f"\n[{ticker}] 처리 시작")
-    records = get_price_history(cfg['stooq'], cfg['yahoo'], days=900)
-
-    if not records or len(records) < 60:
-        print(f"  ✗ {ticker} 데이터 부족, 스킵")
+# ─── 자산별 페이로드 빌드 ────────────────────────────────────
+def build(ticker, cfg):
+    print(f"\n[{ticker}] 데이터 수집 중…")
+    recs = fetch(cfg['stooq'], cfg['yahoo'])
+    if not recs or len(recs) < REG_WIN + 20:
+        print(f"  ✗ 데이터 부족")
         return None
 
-    dates = [r['date'] for r in records]
-    closes = [r['close'] for r in records]
+    dates  = [r['date']  for r in recs]
+    closes = [r['close'] for r in recs]
 
-    trades, daily_states = calculate_signal_series(closes)
-    port_series = backtest_portfolio(daily_states, dates)
-    mdd = compute_max_drawdown(port_series)
+    trades, states = calc_signals(closes)
+    port    = backtest(states)
+    bh      = [100.0]
+    kd      = 0.035 / 252
+    for _ in range(1, len(states)):
+        bh.append(bh[-1] * (1 + 0.80 * kd))
 
-    bh_series = [100.0]
-    krw_daily = 0.035 / 252
-    for _ in range(1, len(daily_states)):
-        bh_series.append(bh_series[-1] * (1 + 0.80 * krw_daily))
+    # 현재 신호
+    cur = states[-1] if states else {}
+    pos = cur.get('position', 0.0)
+    div = cur.get('divergence')
+    sig = 'WAITING'
+    if   pos == 0.0   and div is not None and div <= ENTRY1:  sig = 'ENTRY1_READY'
+    elif pos == 0.35  and div is not None and div <= ENTRY2:  sig = 'ENTRY2_READY'
+    elif pos == 0.70  and div is not None and div <= ENTRY3:  sig = 'ENTRY3_READY'
+    elif pos >  0.0   and div is not None and div >= EXIT_THR: sig = 'EXIT_READY'
+    elif pos >  0.0:  sig = 'HOLDING'
 
-    latest_state = daily_states[-1] if daily_states else None
-    latest_trades = trades[-10:] if trades else []
+    # 날짜 인덱스: states[k].i → recs의 실제 인덱스
+    def date_of(state_i):
+        return dates[state_i] if state_i < len(dates) else '—'
 
-    # 현재 신호 판단 (다음 행동 가이드)
-    current_signal = 'HOLD'
-    current_position = 0.0
-    if latest_state:
-        current_position = latest_state['position']
-        div = latest_state['divergence']
-        if div is not None:
-            if current_position == 0.0 and div <= ENTRY1:
-                current_signal = 'ENTRY1_READY'
-            elif current_position == 0.35 and div <= ENTRY2:
-                current_signal = 'ENTRY2_READY'
-            elif current_position == 0.70 and div <= ENTRY3:
-                current_signal = 'ENTRY3_READY'
-            elif current_position > 0 and div >= EXIT_THR:
-                current_signal = 'EXIT_READY'
-            elif current_position > 0:
-                current_signal = 'HOLDING'
-            else:
-                current_signal = 'WAITING'
+    # dates/closes/predicted/divergence/position 시리즈 정렬
+    # states는 closes[REG_WIN:]에 대응하므로 앞에 None 패딩
+    pad    = REG_WIN
+    s_div  = [None]*pad + [s['divergence'] for s in states]
+    s_pred = [None]*pad + [s['predicted']  for s in states]
+    s_pos  = [0.0]*pad  + [s['position']   for s in states]
+    s_peak = [closes[0]]*pad + [s['peak']  for s in states]
 
-    payload = {
-        'ticker': ticker,
-        'name': cfg['name'],
-        'dates': dates,
-        'closes': closes,
-        'divergence': [s['divergence'] for s in daily_states],
-        'predicted': [s['predicted'] for s in daily_states],
-        'position': [s['position'] for s in daily_states],
-        'peak': [s['peak'] for s in daily_states],
-        'port_series': port_series,
-        'bh_series': bh_series,
+    # port/bh도 동일 길이로 패딩
+    s_port = [100.0]*pad + port
+    s_bh   = [100.0]*pad + bh
+
+    n_entries = sum(1 for t in trades if t['type'].startswith('ENTRY'))
+    metrics = {
+        'total_return': round(port[-1] - 100, 2) if port else 0,
+        'bh_return':    round(bh[-1]   - 100, 2) if bh   else 0,
+        'mdd':          round(mdd(port), 2),
+        'trade_count':  n_entries,
+    }
+
+    cur_peak = states[-1]['peak'] if states else closes[-1]
+    print(f"  ✓ 수익 {metrics['total_return']}% | 신호={sig} | 포지션={pos*20:.0f}% | 거래={n_entries}회")
+    print(f"    종가={cur.get('close','?')} | 예측가={cur.get('predicted','?')} | 괴리율={div}% | 신고가={cur_peak:.2f}")
+
+    return {
+        'ticker': ticker, 'name': cfg['name'],
+        'dates': dates, 'closes': closes,
+        'divergence': s_div, 'predicted': s_pred,
+        'position': s_pos, 'peak': s_peak,
+        'port_series': s_port, 'bh_series': s_bh,
         'trades': trades,
-        'latest_trades': latest_trades,
-        'metrics': {
-            'total_return': round(port_series[-1] - 100, 2) if port_series else 0,
-            'bh_return': round(bh_series[-1] - 100, 2) if bh_series else 0,
-            'mdd': round(mdd, 2),
-            'trade_count': len([t for t in trades if t['type'].startswith('ENTRY')]),
-        },
+        'latest_trades': trades[-10:],
+        'metrics': metrics,
         'current': {
-            'signal': current_signal,
-            'position': current_position,
-            'divergence': latest_state['divergence'] if latest_state else None,
-            'close': latest_state['close'] if latest_state else None,
-            'predicted': latest_state['predicted'] if latest_state else None,
-            'peak': latest_state['peak'] if latest_state else None,
+            'signal': sig, 'position': pos,
+            'divergence': div,
+            'close': cur.get('close'),
+            'predicted': cur.get('predicted'),
+            'peak': cur_peak,
             'date': dates[-1] if dates else None,
         },
         'params': {
-            'reg_window_days': REG_WIN_DAYS,
+            'reg_window_days': REG_WIN,
             'entry1': ENTRY1, 'entry2': ENTRY2, 'entry3': ENTRY3,
-            'exit': EXIT_THR, 'stop_loss': STOP_LOSS_PCT,
-            'regression_method': 'peak_based',
+            'exit': EXIT_THR, 'stop_loss': STOP_LOSS,
+            'regression_method': 'rolling_12m',
         }
     }
 
-    print(f"  ✓ {ticker} 완료: 수익률 {payload['metrics']['total_return']}%, "
-          f"신호={current_signal}, 포지션={current_position*20:.0f}%")
-
-    return payload
-
-
+# ─── 메인 ────────────────────────────────────────────────────
 def main():
     print("=" * 60)
-    print("SGOV 3단계 로테이션 전략 - 일간 데이터 갱신")
-    print(f"실행 시각: {datetime.utcnow().isoformat()} UTC")
+    print("SGOV 3단계 로테이션 — 일간 신호 갱신")
+    print(f"실행: {datetime.utcnow().isoformat()} UTC")
     print("=" * 60)
 
-    output = {
+    out = {
         'generated_at': datetime.utcnow().isoformat() + 'Z',
         'strategy': {
-            'name': 'SGOV 3-Tier Rotation (Peak-Based Regression)',
+            'name': 'SGOV 3-Tier Rotation (Rolling 12M Regression)',
             'portfolio': {'krw_pct': 80, 'usd_pct': 20, 'krw_annual_return': 3.5},
             'tiers': [
-                {'level': 1, 'threshold': ENTRY1, 'dollar_weight': 35, 'portfolio_weight': 7},
-                {'level': 2, 'threshold': ENTRY2, 'dollar_weight': 70, 'portfolio_weight': 14},
-                {'level': 3, 'threshold': ENTRY3, 'dollar_weight': 100, 'portfolio_weight': 20},
+                {'level':1,'threshold':ENTRY1,'dollar_weight':35,'portfolio_weight':7},
+                {'level':2,'threshold':ENTRY2,'dollar_weight':70,'portfolio_weight':14},
+                {'level':3,'threshold':ENTRY3,'dollar_weight':100,'portfolio_weight':20},
             ],
-            'exit_threshold': EXIT_THR,
-            'stop_loss': STOP_LOSS_PCT,
-            'regression_window_days': REG_WIN_DAYS,
-            'regression_method': 'peak_based',
+            'exit_threshold': EXIT_THR, 'stop_loss': STOP_LOSS,
+            'regression_window_days': REG_WIN,
         },
         'assets': {}
     }
 
     for ticker, cfg in ASSETS.items():
         try:
-            result = build_asset_payload(ticker, cfg)
+            result = build(ticker, cfg)
         except Exception as e:
-            print(f"  ✗ {ticker} 처리 중 예외 발생: {e}")
+            print(f"  ✗ {ticker} 예외: {e}")
             result = None
         if result:
-            output['assets'][ticker] = result
-        time.sleep(1)  # rate limit 보호
+            out['assets'][ticker] = result
+        time.sleep(1)
 
     out_path = 'docs/data.json'
 
-    if not output['assets']:
-        print("\n❌ 모든 자산 데이터 수집 실패.")
+    if not out['assets']:
+        print("\n❌ 수집 실패. 기존 data.json 유지.")
         if os.path.exists(out_path):
-            print("   기존 docs/data.json을 유지합니다 (변경 없음).")
-            return True  # 워크플로우 자체는 실패로 처리하지 않음
-        else:
-            print("   기존 파일도 없어 placeholder를 생성합니다.")
-            output['error'] = 'initial_fetch_failed'
+            return True
+        out['error'] = 'fetch_failed'
 
-    # 일부만 성공한 경우, 기존 파일에서 누락 자산 보강
-    if os.path.exists(out_path) and len(output['assets']) < len(ASSETS):
+    # 누락 자산 보강
+    if os.path.exists(out_path) and len(out['assets']) < len(ASSETS):
         try:
-            with open(out_path, 'r', encoding='utf-8') as f:
+            with open(out_path) as f:
                 prev = json.load(f)
-            for ticker in ASSETS:
-                if ticker not in output['assets'] and ticker in prev.get('assets', {}):
-                    print(f"  ↩️  {ticker}는 이전 데이터로 유지")
-                    output['assets'][ticker] = prev['assets'][ticker]
+            for t in ASSETS:
+                if t not in out['assets'] and t in prev.get('assets', {}):
+                    out['assets'][t] = prev['assets'][t]
+                    print(f"  ↩ {t}: 이전 데이터 유지")
         except Exception as e:
-            print(f"  ⚠️ 이전 데이터 병합 실패: {e}")
+            print(f"  ⚠ 병합 실패: {e}")
 
     with open(out_path, 'w', encoding='utf-8') as f:
-        json.dump(output, f, ensure_ascii=False, separators=(',', ':'))
+        json.dump(out, f, ensure_ascii=False, separators=(',', ':'))
 
-    print(f"\n✅ 데이터 저장 완료: {out_path}")
-    print(f"   파일 크기: {len(json.dumps(output))/1024:.1f} KB")
+    size = os.path.getsize(out_path)
+    print(f"\n✅ 저장 완료: {out_path} ({size//1024}KB)")
     return True
 
-
 if __name__ == '__main__':
-    success = main()
-    exit(0 if success else 1)
+    exit(0 if main() else 1)
