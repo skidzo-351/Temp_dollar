@@ -94,16 +94,18 @@ def calc_signals(closes):
     롤링 12M 회귀선 기반 3단계 진입/청산
     - 매 시점 최근 REG_WIN 구간으로 회귀선 계산 (t_offset 폭발 방지)
     - 신고가(peak)는 SAFE 상태에서만 갱신 (표시용)
+    - 손절 기준: 각 단계별 가중평균 진입가 기준 -12%
     """
     N = len(closes)
     if N < REG_WIN + 5:
         return [], []
 
     dollar_pos   = 0.0
-    entry_price  = None
-    running_peak = closes[0]
+    entry_price  = None   # 가중평균 진입가
+    entry_amount = 0.0    # 누적 매수 금액 비중 (포지션 비중 × 가격)
     trades       = []
     states       = []
+    running_peak = closes[0]
 
     for i in range(REG_WIN, N):
         # SAFE 상태에서만 신고가 갱신
@@ -113,7 +115,7 @@ def calc_signals(closes):
         # 롤링 회귀선: 과거 REG_WIN 봉 → 다음 봉 예측
         window = closes[i - REG_WIN: i]
         slope, intercept = linreg(window)
-        predicted = intercept + slope * REG_WIN   # x = REG_WIN → 다음날
+        predicted = intercept + slope * REG_WIN
 
         if predicted == 0:
             states.append({'i': i, 'close': closes[i], 'predicted': None,
@@ -124,30 +126,59 @@ def calc_signals(closes):
         divergence = (closes[i] - predicted) / predicted * 100.0
         action = None
 
-        # 손절 우선
-        if dollar_pos > 0 and entry_price:
+        # 손절: 가중평균 진입가 대비 -12%
+        if dollar_pos > 0 and entry_price is not None:
             if (closes[i] - entry_price) / entry_price * 100.0 <= STOP_LOSS:
                 action = 'STOP_LOSS'
-                dollar_pos = 0.0; entry_price = None
+                dollar_pos   = 0.0
+                entry_price  = None
+                entry_amount = 0.0
 
         if action is None:
             if dollar_pos == 0.0:
                 if divergence <= ENTRY1:
-                    dollar_pos = 0.35; entry_price = closes[i]; action = 'ENTRY1'
+                    # 1차: 달러자산의 35%
+                    new_pos      = 0.35
+                    entry_amount = 0.35 * closes[i]
+                    dollar_pos   = new_pos
+                    entry_price  = closes[i]   # 단순: 1차 진입가
+                    action = 'ENTRY1'
+
             elif dollar_pos == 0.35:
-                if   divergence <= ENTRY2:    dollar_pos = 0.70; action = 'ENTRY2'
-                elif divergence >= EXIT_THR:  dollar_pos = 0.0; entry_price = None; action = 'EXIT'
+                if divergence <= ENTRY2:
+                    # 2차: 달러자산의 70% (추가 35%)
+                    # 가중평균 진입가 갱신
+                    prev_amount  = entry_amount                     # 0.35 × 1차가격
+                    add_amount   = 0.35 * closes[i]                 # 0.35 × 2차가격
+                    entry_amount = prev_amount + add_amount
+                    entry_price  = entry_amount / 0.70              # 가중평균
+                    dollar_pos   = 0.70
+                    action = 'ENTRY2'
+                elif divergence >= EXIT_THR:
+                    dollar_pos = 0.0; entry_price = None; entry_amount = 0.0; action = 'EXIT'
+
             elif dollar_pos == 0.70:
-                if   divergence <= ENTRY3:    dollar_pos = 1.0; action = 'ENTRY3'
-                elif divergence >= EXIT_THR:  dollar_pos = 0.0; entry_price = None; action = 'EXIT'
+                if divergence <= ENTRY3:
+                    # 3차: 달러자산의 100% (추가 30%)
+                    prev_amount  = entry_amount                     # 0.70 × 평균가
+                    add_amount   = 0.30 * closes[i]                 # 0.30 × 3차가격
+                    entry_amount = prev_amount + add_amount
+                    entry_price  = entry_amount / 1.00              # 가중평균
+                    dollar_pos   = 1.0
+                    action = 'ENTRY3'
+                elif divergence >= EXIT_THR:
+                    dollar_pos = 0.0; entry_price = None; entry_amount = 0.0; action = 'EXIT'
+
             elif dollar_pos == 1.0:
-                if divergence >= EXIT_THR:    dollar_pos = 0.0; entry_price = None; action = 'EXIT'
+                if divergence >= EXIT_THR:
+                    dollar_pos = 0.0; entry_price = None; entry_amount = 0.0; action = 'EXIT'
 
         if action:
             trades.append({'index': i, 'type': action,
                            'divergence': round(divergence, 2),
                            'price': closes[i],
-                           'position_after': dollar_pos})
+                           'position_after': dollar_pos,
+                           'avg_entry': round(entry_price, 2) if entry_price else None})
 
         states.append({'i': i, 'close': closes[i],
                        'predicted': round(predicted, 4),
