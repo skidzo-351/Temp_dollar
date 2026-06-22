@@ -12,14 +12,20 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: daily-signal-update
   cancel-in-progress: true
 
 jobs:
-  update:
+  update-and-deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,14 +38,26 @@ jobs:
       - name: Run signal update script
         run: python scripts/update_data.py
 
-      - name: Commit and push if changed
+      - name: Commit data.json if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if git diff --quiet -- docs/data.json; then
-            echo "No changes in data.json"
+            echo "No changes in data.json — skipping commit"
           else
             git add docs/data.json
             git commit -m "chore: daily signal update $(date -u +'%Y-%m-%d %H:%M UTC')"
             git push
           fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'docs'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
