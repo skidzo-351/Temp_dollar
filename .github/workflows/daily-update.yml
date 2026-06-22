@@ -37,22 +37,20 @@ jobs:
 
       - name: Run signal update script
         run: python scripts/update_data.py
+      
       - name: Commit data.json if changed
         run: |
-         git config user.name "github-actions[bot]"
-         git config user.email "github-actions[bot]@users.noreply.github.com"
-         if git diff --quiet -- docs/data.json; then
-          echo "No changes in data.json — skipping commit"
-         else
-          git add docs/data.json
-          git commit -m "chore: daily signal update $(date -u +'%Y-%m-%d %H:%M UTC')"
-          git pull --rebase --no-edit origin main ||
-          git rebase --abort
-          git merge -m "Merge remote changes" origin/main
-          }
-          git push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- docs/data.json; then
+            echo "No changes in data.json — skipping commit"
+          else
+            git add docs/data.json
+            git commit -m "chore: daily signal update $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git pull --rebase --no-edit origin main || git rebase --abort
+            git merge -m "Merge remote changes" origin/main
+            git push
           fi
-
   
       - name: Setup Pages
         uses: actions/configure-pages@v5
