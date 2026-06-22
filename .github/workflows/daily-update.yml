@@ -37,7 +37,7 @@ jobs:
 
       - name: Run signal update script
         run: python scripts/update_data.py
-
+    
       - name: Commit data.json if changed
         run: |
           git config user.name "github-actions[bot]"
@@ -47,9 +47,11 @@ jobs:
           else
             git add docs/data.json
             git commit -m "chore: daily signal update $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git pull --rebase origin main
             git push
           fi
 
+  
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
