@@ -7,7 +7,7 @@ import json, os, urllib.request, time, math
 from datetime import datetime
 
 # ─── 전략 파라미터 ───────────────────────────────────────────
-REG_WIN    = 200   # 12개월 거래일 기준
+REG_WIN    = 252  # 12개월 거래일 기준
 ENTRY1     = -5.0
 ENTRY2     = -10.0
 ENTRY3     = -20.0
