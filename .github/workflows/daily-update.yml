@@ -29,6 +29,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -37,7 +41,7 @@ jobs:
 
       - name: Run signal update script
         run: python scripts/update_data.py
-      
+
       - name: Commit data.json if changed
         run: |
           git config user.name "github-actions[bot]"
@@ -47,12 +51,22 @@ jobs:
           else
             git add docs/data.json
             git commit -m "chore: daily signal update $(date -u +'%Y-%m-%d %H:%M UTC')"
-            git pull --rebase --strategy-option=ours origin/main || git rebase --abort
-         
-            git merge -m "Merge remote changes" origin/main
-            git push
+            # ensure origin/main exists locally
+            git fetch origin main --no-tags
+            # attempt to rebase onto origin/main, fall back to merge if rebase fails
+            if git rebase origin/main; then
+              echo "Rebased onto origin/main"
+            else
+              echo "Rebase failed — aborting and merging origin/main"
+              git rebase --abort || true
+              git merge --no-edit origin/main || true
+            fi
+            # push the updated branch to origin main explicitly
+            git push origin HEAD:main
           fi
-  
+    
+      
+      
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
