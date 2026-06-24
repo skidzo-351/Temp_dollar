@@ -47,7 +47,7 @@ jobs:
           else
             git add docs/data.json
             git commit -m "chore: daily signal update $(date -u +'%Y-%m-%d %H:%M UTC')"
-            git rebase --strategy-option=ours origin/main || git rebase --abort
+            git pull --rebase --strategy-option=ours origin/main || git rebase --abort
          
             git merge -m "Merge remote changes" origin/main
             git push
