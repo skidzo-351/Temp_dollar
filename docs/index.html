@@ -13,85 +13,95 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;font-size:13px;line-height:1.6}
-header{background:var(--s1);border-bottom:1px solid var(--b);padding:16px 20px}
+
+header{background:var(--s1);border-bottom:1px solid var(--b);padding:14px 20px}
 .ht{font-size:18px;font-weight:700;color:var(--blue)}
-.hs{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:3px}
-.hb{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.hs{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:2px}
+.hb{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
 .hb span{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:2px;border:1px solid}
 .bg{background:rgba(61,190,122,.1);border-color:rgba(61,190,122,.3);color:var(--green)}
 .ba{background:rgba(232,163,58,.1);border-color:rgba(232,163,58,.3);color:var(--amber)}
 .bb{background:rgba(74,143,232,.1);border-color:rgba(74,143,232,.3);color:var(--blue)}
 .bp{background:rgba(168,126,245,.1);border-color:rgba(168,126,245,.3);color:var(--purple)}
-main{max-width:1080px;margin:0 auto;padding:18px 20px 80px}
 
-/* 투자 시작일 설정 배너 */
-.start-banner{background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.start-banner.not-set{border-color:var(--amber);background:rgba(232,163,58,.06)}
-.start-banner.active{border-color:var(--green);background:rgba(61,190,122,.05)}
+main{max-width:1080px;margin:0 auto;padding:16px 20px 80px}
+
+/* ── 투자 시작일 배너 ── */
+.start-banner{background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.start-banner.not-set{border-color:var(--amber)}
+.start-banner.active{border-color:var(--green)}
 .sb-label{font-family:var(--mono);font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;white-space:nowrap}
-.sb-date{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text)}
-.sb-input{background:var(--bg);border:1px solid var(--b);color:var(--text);font-family:var(--mono);font-size:12px;padding:5px 8px;border-radius:3px;outline:none}
+.sb-date{font-family:var(--mono);font-size:13px;font-weight:700}
+.sb-input{background:var(--bg);border:1px solid var(--b);color:var(--text);font-family:var(--mono);font-size:12px;padding:5px 8px;border-radius:3px;outline:none;color-scheme:dark}
 .sb-input:focus{border-color:var(--blue)}
-.sb-btn{font-family:var(--mono);font-size:10px;padding:5px 12px;border-radius:3px;border:1px solid;cursor:pointer;background:transparent}
-.sb-btn.set{border-color:var(--green);color:var(--green)}
-.sb-btn.set:hover{background:rgba(61,190,122,.1)}
-.sb-btn.clr{border-color:var(--dim);color:var(--dim)}
-.sb-btn.clr:hover{background:rgba(90,116,144,.1)}
-.sb-info{font-family:var(--mono);font-size:10px;color:var(--dim);flex:1}
+.sb-btn{font-family:var(--mono);font-size:10px;padding:5px 12px;border-radius:3px;border:1px solid;cursor:pointer;background:transparent;transition:background .15s}
+.sb-btn.set{border-color:var(--green);color:var(--green)}.sb-btn.set:hover{background:rgba(61,190,122,.1)}
+.sb-btn.clr{border-color:var(--dim);color:var(--dim)}.sb-btn.clr:hover{background:rgba(90,116,144,.1)}
+.sb-hint{font-family:var(--mono);font-size:10px;color:var(--dim);flex:1;min-width:160px}
 
-/* 탭 */
-.tabs{display:flex;gap:6px;margin-bottom:18px}
-.tab{padding:7px 16px;background:var(--s1);border:1px solid var(--b);color:var(--dim);cursor:pointer;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;border-radius:3px}
+/* ── 실제 포지션 카드 (시작일 설정 후 메인) ── */
+.position-card{border-radius:8px;padding:20px 22px;margin-bottom:14px;border:2px solid}
+.pc-safe{background:rgba(90,116,144,.08);border-color:var(--dim)}
+.pc-entry{background:rgba(56,196,216,.08);border-color:var(--cyan)}
+.pc-holding{background:rgba(232,163,58,.07);border-color:var(--amber)}
+.pc-header{display:flex;align-items:baseline;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.pc-stage{font-size:26px;font-weight:700;font-family:var(--mono)}
+.pc-badge{font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;border:1px solid;font-weight:700}
+.pc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+@media(max-width:600px){.pc-grid{grid-template-columns:repeat(2,1fr)}}
+.pc-item{background:rgba(0,0,0,.2);border-radius:5px;padding:10px 12px}
+.pc-item dt{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
+.pc-item dd{font-family:var(--mono);font-size:15px;font-weight:700}
+.pc-next{background:rgba(0,0,0,.25);border-radius:5px;padding:10px 14px;font-family:var(--mono);font-size:12px}
+.pc-next-label{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
+
+/* ── 신호 카드 ── */
+.signal-card{border-radius:6px;padding:14px 18px;margin-bottom:14px;border:1.5px solid;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center}
+.sc-div-block{text-align:center;min-width:80px}
+.sc-div-num{font-family:var(--mono);font-size:28px;font-weight:700}
+.sc-div-label{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em}
+.sc-right{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sc-item dt{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+.sc-item dd{font-family:var(--mono);font-size:12px;font-weight:700}
+@media(max-width:580px){.signal-card{grid-template-columns:1fr}.sc-right{grid-template-columns:repeat(2,1fr)}}
+
+/* ── 탭 ── */
+.tabs{display:flex;gap:6px;margin-bottom:14px}
+.tab{padding:6px 14px;background:var(--s1);border:1px solid var(--b);color:var(--dim);cursor:pointer;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;border-radius:3px}
 .tab.active{background:rgba(74,143,232,.15);border-color:var(--blue);color:var(--blue)}
 
-/* 신호 카드 */
-.signal-card{border-radius:8px;padding:18px 20px;margin-bottom:16px;border:2px solid}
-.sig-WAITING{background:rgba(90,116,144,.08);border-color:var(--dim)}
-.sig-HOLDING{background:rgba(232,163,58,.07);border-color:var(--amber)}
-.sig-ENTRY1_READY,.sig-ENTRY2_READY,.sig-ENTRY3_READY{background:rgba(56,196,216,.08);border-color:var(--cyan)}
-.sig-EXIT_READY{background:rgba(224,91,75,.08);border-color:var(--red)}
-.sig-REBAL_HOT_READY{background:rgba(38,191,173,.08);border-color:var(--teal)}
-.sc-sig{font-size:20px;font-weight:700;font-family:var(--mono);margin-bottom:6px}
-.sc-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-family:var(--mono);font-size:11px}
-.sm-item dt{color:var(--dim);font-size:9px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
-.sm-item dd{font-weight:700}
-
-/* KPI */
-.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
-.kpi{background:var(--s2);border:1px solid var(--b);border-radius:5px;padding:11px 10px;text-align:center}
-.kpi dt{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
-.kpi dd{font-family:var(--mono);font-size:16px;font-weight:700}
-
-/* 차트 패널 */
-.panel{background:var(--s1);border:1px solid var(--b);border-radius:6px;overflow:hidden;margin-bottom:14px}
-.ph{padding:10px 14px;border-bottom:1px solid var(--b);font-family:var(--mono);font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;display:flex;justify-content:space-between;align-items:center}
+/* ── 패널 ── */
+.panel{background:var(--s1);border:1px solid var(--b);border-radius:6px;overflow:hidden;margin-bottom:12px}
+.ph{padding:9px 14px;border-bottom:1px solid var(--b);font-family:var(--mono);font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
+.ph .toggle{font-size:11px;color:var(--dim)}
 .pb{padding:12px}
 canvas{display:block}
 .leg{display:flex;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:8px}
 .lw{display:inline-block;width:12px;height:2px;margin-right:4px;vertical-align:middle}
 .ld{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:middle}
 .lt{display:inline-block;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:6px solid;margin-right:4px;vertical-align:middle}
-.lsq{display:inline-block;width:7px;height:7px;border-radius:1px;margin-right:4px;vertical-align:middle;border:1px solid rgba(255,255,255,.4)}
 
-/* 거래 로그 */
+/* ── 거래 로그 ── */
 .log-wrap{max-height:340px;overflow-y:auto}
 table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
 th{padding:5px 8px;border-bottom:1px solid var(--b);color:var(--dim);font-size:9px;text-align:left;position:sticky;top:0;background:var(--s1);text-transform:uppercase}
 td{padding:5px 8px;border-bottom:1px solid rgba(30,45,66,.4)}
+tr.sim-row td{opacity:.35}
 .tag{display:inline-block;padding:1px 5px;font-size:9px;font-weight:700;border:1px solid currentColor;border-radius:2px}
-tr.sim-row td{opacity:.45}   /* 시작일 이전 시뮬 행 */
-tr.sim-row td:first-child::before{content:'◌ ';color:var(--dim)}
+.real-badge{font-size:8px;font-family:var(--mono);padding:1px 5px;border-radius:2px;margin-left:4px;font-weight:700}
 
-/* 파라미터 */
-.param-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-.param-box{background:var(--s2);border:1px solid var(--b);border-radius:5px;padding:13px 14px}
+/* ── 파라미터 ── */
+.param-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.param-grid{grid-template-columns:1fr}}
+.param-box{background:var(--s2);border:1px solid var(--b);border-radius:5px;padding:12px 14px}
 .pb-title{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
-.pb-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(30,45,66,.3);font-family:var(--mono);font-size:11px}
+.pb-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(30,45,66,.3);font-family:var(--mono);font-size:11px;gap:8px}
 .pb-row:last-child{border:none}
-.pb-key{color:var(--dim)}.pb-val{font-weight:700}
+.pb-key{color:var(--dim);white-space:nowrap}.pb-val{font-weight:700;text-align:right}
 
 .pos{color:var(--green)}.neg{color:var(--red)}.warn{color:var(--amber)}.neu{color:var(--blue)}
 #loading{text-align:center;padding:60px;font-family:var(--mono);color:var(--dim)}
+.section-title{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin:16px 0 8px;border-bottom:1px solid var(--b);padding-bottom:6px}
 </style>
 </head>
 <body>
@@ -110,57 +120,90 @@ tr.sim-row td:first-child::before{content:'◌ ';color:var(--dim)}
   <div id="loading">📡 신호 데이터 로딩 중...</div>
   <div id="app" style="display:none">
 
-    <!-- 투자 시작일 설정 -->
+    <!-- 투자 시작일 -->
     <div class="start-banner not-set" id="startBanner">
       <span class="sb-label">투자 시작일</span>
-      <span class="sb-date" id="startDateDisp">미설정</span>
+      <span class="sb-date" id="startDateDisp" style="color:var(--amber)">미설정</span>
       <input type="date" class="sb-input" id="startDateInput">
       <button class="sb-btn set" onclick="setStartDate()">설정</button>
       <button class="sb-btn clr" onclick="clearStartDate()">초기화</button>
-      <span class="sb-info" id="startInfo">시작일을 설정하면 이후부터 실제 포지션을 추적합니다. 이전 구간은 백테스트 참고용으로 표시됩니다.</span>
+      <span class="sb-hint" id="startHint">시작일 설정 시 실제 포지션 추적이 시작됩니다</span>
     </div>
 
+    <!-- 탭 -->
     <div class="tabs">
-      <button class="tab active" onclick="sw('SPY',this)">SPY 신호</button>
-      <button class="tab" onclick="sw('QQQ',this)">QQQ 신호</button>
+      <button class="tab active" onclick="sw('SPY',this)">SPY</button>
+      <button class="tab" onclick="sw('QQQ',this)">QQQ</button>
     </div>
 
-    <div id="signalCard"></div>
-    <div class="kpi-row" id="kpiRow"></div>
+    <!-- 실제 포지션 (시작일 설정 시 표시) -->
+    <div id="realPositionSection" style="display:none">
+      <div class="section-title">📍 실제 포지션 현황</div>
+      <div id="positionCard"></div>
+    </div>
 
+    <!-- 현재 신호 -->
+    <div class="section-title" id="signalSectionTitle">📡 현재 신호</div>
+    <div id="signalCard"></div>
+
+    <!-- 차트 -->
     <div class="panel">
-      <div class="ph">
+      <div class="ph" onclick="togglePanel(this)">
         <span>SPY 가격 + 36M 회귀선</span>
-        <span id="cn" style="color:var(--amber)"></span>
+        <span id="cn" style="color:var(--amber);margin-right:8px"></span>
       </div>
       <div class="pb">
-        <canvas id="priceC" height="240"></canvas>
+        <canvas id="priceC" height="230"></canvas>
         <div class="leg" id="priceLeg"></div>
       </div>
     </div>
 
     <div class="panel">
-      <div class="ph">
+      <div class="ph" onclick="togglePanel(this)">
         <span>괴리율 히스토리</span>
-        <span style="color:var(--dim);font-family:var(--mono);font-size:10px">진입 -5/-10/-15% | 청산 +5/+10% | 과열 +20%</span>
+        <span style="color:var(--dim);font-size:10px">-5/-10/-15% | +5/+10% | +20%</span>
       </div>
-      <div class="pb"><canvas id="divC" height="160"></canvas></div>
+      <div class="pb"><canvas id="divC" height="150"></canvas></div>
     </div>
 
-    <div class="param-grid" id="paramGrid"></div>
-
-    <div class="panel">
-      <div class="ph">
-        <span>거래 기록</span>
-        <span id="tradeStat" style="color:var(--amber)"></span>
-      </div>
-      <div class="pb log-wrap">
-        <table>
-          <thead><tr>
-            <th>날짜</th><th>구분</th><th>괴리율</th><th>가격</th><th>포지션</th><th>구분</th>
+    <!-- 실제 거래 (시작일 이후) -->
+    <div id="realTradeSection" style="display:none">
+      <div class="section-title">✅ 실제 거래 내역 <span id="realTradeStat" style="color:var(--green);font-size:10px;font-weight:normal"></span></div>
+      <div class="panel">
+        <div class="pb log-wrap">
+          <table><thead><tr>
+            <th>날짜</th><th>구분</th><th>괴리율</th><th>가격</th><th>포지션</th>
           </tr></thead>
-          <tbody id="logB"></tbody>
-        </table>
+          <tbody id="realLogB"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 백테스트 참고 (접힘) -->
+    <div class="section-title">📊 백테스트 참고 <span id="simStat" style="color:var(--dim);font-size:10px;font-weight:normal"></span></div>
+    <div class="panel">
+      <div class="ph" onclick="togglePanel(this)" style="cursor:pointer">
+        <span>백테스트 전체 거래 기록</span>
+        <span class="toggle">▼</span>
+      </div>
+      <div class="pb" style="display:none">
+        <div class="log-wrap">
+          <table><thead><tr>
+            <th>날짜</th><th>구분</th><th>괴리율</th><th>가격</th><th>포지션</th>
+          </tr></thead>
+          <tbody id="simLogB"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 전략 파라미터 (접힘) -->
+    <div class="panel">
+      <div class="ph" onclick="togglePanel(this)" style="cursor:pointer">
+        <span>전략 파라미터</span>
+        <span class="toggle">▼</span>
+      </div>
+      <div class="pb" style="display:none">
+        <div class="param-grid" id="paramGrid"></div>
       </div>
     </div>
 
@@ -169,264 +212,290 @@ tr.sim-row td:first-child::before{content:'◌ ';color:var(--dim)}
 
 <script>
 'use strict';
-const LS_START = 'sgov_start_date';
-let D = null;
-let curTicker = 'SPY';
-let startDate = localStorage.getItem(LS_START) || '';  // 'YYYY-MM-DD' or ''
+const LS_KEY = 'sgov_start_date';
+let D = null, curTicker = 'SPY';
+let startDate = localStorage.getItem(LS_KEY) || '';
 
-// ── 시작일 UI ────────────────────────────────────────────────
+/* ── 유틸 ── */
+const CV = {
+  price:'#4a8fe8', pred:'#3dbe7a', div_line:'#e8a33a',
+  entry:'#38c4d8', exit:'#e05b4b', rebal_hot:'#26bfad', rebal_down:'#a87ef5',
+  dim:'#5a7490', start_line:'rgba(61,190,122,0.7)'
+};
+const TAG_LABEL = {
+  ENTRY1:'1차 진입', ENTRY2:'2차 진입', ENTRY3:'3차 진입',
+  EXIT:'청산1(+5%)', EXIT2:'청산2(+10%)',
+  REBAL_HOT:'과열리밸⚖️', REBAL_DOWN1:'하락리밸1💸', REBAL_DOWN2:'하락리밸2💸'
+};
+const TAG_COLOR = {
+  ENTRY1:'color:var(--cyan)', ENTRY2:'color:var(--blue)', ENTRY3:'color:var(--green)',
+  EXIT:'color:var(--amber)', EXIT2:'color:var(--red)',
+  REBAL_HOT:'color:var(--teal)', REBAL_DOWN1:'color:var(--purple)', REBAL_DOWN2:'color:var(--purple)'
+};
+const SIG_MSG = {
+  WAITING:'관망 중 — SGOV 보유',
+  ENTRY1_READY:'⚡ 1차 진입 가능',
+  ENTRY2_READY:'⚡ 2차 진입 가능',
+  ENTRY3_READY:'⚡ 3차 진입 가능',
+  HOLDING:'포지션 보유 중',
+  EXIT_READY:'💰 청산 신호',
+  REBAL_HOT_READY:'⚖️ 과열 리밸 가능',
+};
+const SIG_DIV_COLOR = div => div == null ? CV.dim : div < -10 ? '#e05b4b' : div < 0 ? '#e8a33a' : div > 15 ? '#26bfad' : '#3dbe7a';
+const fmt = v => (v==null||isNaN(v)) ? '—' : '$'+Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
+const fp  = (v,s=true) => (v==null||isNaN(v)) ? '—' : (s&&v>=0?'+':'')+Number(v).toFixed(2)+'%';
+const posLabel = p => p>=0.99?'3차 진입':p>=0.69?'2차 진입':p>=0.34?'1차 진입':'SAFE';
+const esLabel  = e => ['SAFE','1차 진입 중','2차 진입 중','3차 진입 중'][e]||'—';
+
+function getAsset(){ return D?.assets?.[curTicker]; }
+
+/* ── 시작일 UI ── */
 function updateStartBanner(){
   const banner = document.getElementById('startBanner');
   const disp   = document.getElementById('startDateDisp');
-  const info   = document.getElementById('startInfo');
-  const input  = document.getElementById('startDateInput');
-
+  const hint   = document.getElementById('startHint');
   if(startDate){
-    banner.className = 'start-banner active';
+    banner.className='start-banner active';
     disp.textContent = startDate;
-    input.value = startDate;
-    info.textContent = `${startDate} 이후: 실제 포지션 추적 | 이전: 백테스트 참고용 (반투명 표시)`;
+    disp.style.color = 'var(--green)';
+    hint.textContent = `${startDate} 이후 거래만 실제 포지션으로 추적`;
   } else {
-    banner.className = 'start-banner not-set';
-    disp.textContent = '미설정';
-    info.textContent = '시작일을 설정하면 이후부터 실제 포지션을 추적합니다. 이전 구간은 백테스트 참고용으로 표시됩니다.';
+    banner.className='start-banner not-set';
+    disp.textContent='미설정';
+    disp.style.color='var(--amber)';
+    hint.textContent='시작일 설정 시 실제 포지션 추적이 시작됩니다';
   }
+  document.getElementById('realPositionSection').style.display = startDate ? '' : 'none';
+  document.getElementById('realTradeSection').style.display    = startDate ? '' : 'none';
+  document.getElementById('signalSectionTitle').textContent    = startDate ? '📡 현재 신호 (회귀선 기준)' : '📡 현재 신호';
 }
 
 function setStartDate(){
   const v = document.getElementById('startDateInput').value;
   if(!v){ alert('날짜를 선택해주세요.'); return; }
-  startDate = v;
-  localStorage.setItem(LS_START, v);
-  updateStartBanner();
-  renderAll();
+  startDate = v; localStorage.setItem(LS_KEY, v);
+  updateStartBanner(); renderAll();
 }
-
 function clearStartDate(){
-  startDate = '';
-  localStorage.removeItem(LS_START);
-  document.getElementById('startDateInput').value = '';
-  updateStartBanner();
-  renderAll();
+  startDate=''; localStorage.removeItem(LS_KEY);
+  document.getElementById('startDateInput').value='';
+  updateStartBanner(); renderAll();
 }
 
-// ── 시작일 기준 신호 재계산 ──────────────────────────────────
-function computeFromStartDate(asset){
-  /**
-   * 전체 trades를 원본으로 두고,
-   * 시작일 이후 trades만 기반으로 '실제 포지션'을 재계산.
-   * 시작일 이전 trades는 isSim=true 태그.
-   */
-  const dates  = asset.dates || [];
-  const trades = asset.trades || [];
-
-  if(!startDate){
-    // 시작일 미설정: 전체를 시뮬로 표시
-    return trades.map(t => ({...t, isSim: true}));
-  }
-
-  // 시작일 이후 trades만으로 현재 포지션 재계산
-  const realTrades = trades.filter(t => {
-    const d = dates[t.index] || '';
-    return d >= startDate;
-  });
-
-  // 실제 포지션 추적: realTrades를 순서대로 처리
-  // SAFE 상태에서 시작, 진입/청산/리밸 적용
-  let es = 0; // 진입 단계
-  realTrades.forEach(t => {
-    if(t.type.startsWith('ENTRY')){
-      es = t.type === 'ENTRY1' ? 1 : t.type === 'ENTRY2' ? 2 : 3;
-    } else if(t.type === 'EXIT2'){
-      es = 0;
-    } else if(t.type === 'EXIT'){
-      // 50% 청산 — 단계 유지 (보유 중)
-    }
-    t._real_es = es;
-  });
-
-  // 전체 trades에 isSim 태그 부착
-  return trades.map(t => {
-    const d = dates[t.index] || '';
-    return {...t, isSim: d < startDate};
-  });
-}
-
-function getCurrentPositionFromStart(asset){
-  /**
-   * 시작일 이후 trades 기반으로 현재 실제 포지션 반환
-   * 반환: { es: 0~3, lastTrade: {} | null }
-   */
-  if(!startDate) return { es: null, lastTrade: null };
-
-  const dates  = asset.dates || [];
-  const trades = asset.trades || [];
-  const realTrades = trades
+/* ── 실제 포지션 계산 ── */
+function calcRealPosition(asset){
+  if(!asset||!startDate) return { es:0, trades:[] };
+  const dates  = asset.dates||[];
+  const trades = (asset.trades||[])
     .filter(t => (dates[t.index]||'') >= startDate)
-    .sort((a,b) => a.index - b.index);
+    .sort((a,b)=>a.index-b.index);
 
   let es = 0;
-  let lastTrade = null;
-  for(const t of realTrades){
-    if(t.type === 'ENTRY1') es = 1;
-    else if(t.type === 'ENTRY2') es = 2;
-    else if(t.type === 'ENTRY3') es = 3;
-    else if(t.type === 'EXIT2') es = 0;
-    else if(t.type === 'REBAL_HOT') es = 0;
-    lastTrade = t;
-  }
-  return { es, lastTrade };
+  const processed = trades.map(t => {
+    const before = es;
+    if     (t.type==='ENTRY1') es=1;
+    else if(t.type==='ENTRY2') es=2;
+    else if(t.type==='ENTRY3') es=3;
+    else if(t.type==='EXIT2' ) es=0;
+    else if(t.type==='REBAL_HOT') es=0;
+    return {...t, es_before: before, es_after: es};
+  });
+  return { es, trades: processed };
 }
 
-// ── 헬퍼 ─────────────────────────────────────────────────────
-const CV = {
-  price:'#4a8fe8', pred:'#3dbe7a', div_line:'#e8a33a',
-  entry:'#38c4d8', exit:'#e05b4b', rebal_hot:'#26bfad', rebal_down:'#a87ef5',
-  dim:'#5a7490', start_line:'rgba(61,190,122,0.6)'
-};
-
-const SIG_COLOR = {
-  WAITING:'#5a7490', HOLDING:'#e8a33a',
-  ENTRY1_READY:'#38c4d8', ENTRY2_READY:'#38c4d8', ENTRY3_READY:'#38c4d8',
-  EXIT_READY:'#e05b4b', REBAL_HOT_READY:'#26bfad', NO_SIGNAL:'#5a7490'
-};
-
-const SIG_MSG = {
-  WAITING:         '관망 중 — SGOV 보유',
-  ENTRY1_READY:    '⚡ 1차 진입 — SGOV 순자산×12% → SPY:QQQ=2:1',
-  ENTRY2_READY:    '⚡ 2차 진입 — SGOV 순자산×12% → SPY:QQQ=2:1',
-  ENTRY3_READY:    '⚡ 3차 진입 — SGOV 잔액 전부 → SPY:QQQ=2:1',
-  HOLDING:         '전술 포지션 보유 중',
-  EXIT_READY:      '💰 청산 신호 — 분할 청산 진행',
-  REBAL_HOT_READY: '⚖️ 과열 리밸 — 전체 포트 40:20:40 복원',
-};
-
-const TAG_LABEL = {
-  ENTRY1:'1차진입', ENTRY2:'2차진입', ENTRY3:'3차진입',
-  EXIT:'청산1(+5%)', EXIT2:'청산2(+10%)',
-  REBAL_HOT:'과열리밸⚖️', REBAL_DOWN1:'하락리밸1💸', REBAL_DOWN2:'하락리밸2💸'
-};
-const TAG_COLOR = {
-  ENTRY1:'color:var(--cyan)',  ENTRY2:'color:var(--blue)',  ENTRY3:'color:var(--green)',
-  EXIT:'color:var(--amber)',   EXIT2:'color:var(--red)',
-  REBAL_HOT:'color:var(--teal)',
-  REBAL_DOWN1:'color:var(--purple)', REBAL_DOWN2:'color:var(--purple)'
-};
-
-const esLabel = e => ['SAFE','1차 진입 중','2차 진입 중','3차 진입 중'][e] || '—';
-const posToLabel = p => p>=0.99?'3차':p>=0.69?'2차':p>=0.34?'1차':'SAFE';
-const fmt = v => (v==null||isNaN(v))? '—' : '$'+Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
-const fp  = (v,s=true) => (v==null||isNaN(v))? '—' : (s&&v>=0?'+':'')+Number(v).toFixed(2)+'%';
-
-function getAsset(){ return D?.assets?.[curTicker]; }
-
-// ── 신호 카드 ────────────────────────────────────────────────
-function renderSignal(){
-  const a = getAsset(); if(!a) return;
-  const c   = a.current;
-  const sig = c.signal || 'WAITING';
-  const col = SIG_COLOR[sig] || CV.dim;
+/* ── 실제 포지션 카드 ── */
+function renderPositionCard(){
+  const a = getAsset(); if(!a||!startDate) return;
+  const { es, trades } = calcRealPosition(a);
+  const c = a.current;
   const div = c.divergence;
+  const dates = a.dates||[];
 
-  // 실제 포지션 (시작일 기준)
-  const { es: realEs } = getCurrentPositionFromStart(a);
-  const hasStart = !!startDate;
+  const card = document.getElementById('positionCard');
 
-  // 포지션 표시: 시작일 설정 여부에 따라 구분
-  const posDisplay = hasStart
-    ? `<span class="${realEs>0?'warn':'pos'}">${esLabel(realEs)}</span>`
-    : `<span style="color:var(--dim)">시작일 미설정</span>`;
+  // 다음 액션 결정
+  let nextAction = '';
+  if(es === 0){
+    if(div!=null && div <= -5)        nextAction = `⚡ <b style="color:var(--cyan)">1차 진입 가능</b> — SGOV 순자산×12% 투입`;
+    else if(div!=null)                nextAction = `관망 중 (진입 신호: 괴리율 -5% 이하, 현재 ${fp(div,true)})`;
+    else                              nextAction = `신호 없음`;
+  } else if(es === 1){
+    if(div!=null && div <= -10)       nextAction = `⚡ <b style="color:var(--blue)">2차 진입 가능</b> — SGOV 순자산×12% 추가`;
+    else if(div!=null && div >= 5)    nextAction = `💰 <b style="color:var(--amber)">청산1 가능</b> — 전술 포지션 50% 매도`;
+    else                              nextAction = `보유 중 (2차 진입: -10% | 청산1: +5%)`;
+  } else if(es === 2){
+    if(div!=null && div <= -15)       nextAction = `⚡ <b style="color:var(--green)">3차 진입 가능</b> — SGOV 잔액 전부`;
+    else if(div!=null && div >= 5)    nextAction = `💰 <b style="color:var(--amber)">청산1 가능</b> — 전술 포지션 50% 매도`;
+    else                              nextAction = `보유 중 (3차 진입: -15% | 청산1: +5%)`;
+  } else if(es === 3){
+    if(div!=null && div >= 5)         nextAction = `💰 <b style="color:var(--amber)">청산1 가능</b> — 전술 포지션 50% 매도`;
+    else                              nextAction = `보유 중 (청산1: +5% | 하락리밸: 평단-20%)`;
+  }
 
-  const posNote = hasStart
-    ? (realEs === 0
-        ? `<span style="color:var(--dim);font-size:9px">시작일(${startDate}) 이후 SAFE</span>`
-        : `<span style="color:var(--amber);font-size:9px">실제 진입 포지션</span>`)
-    : `<span style="color:var(--dim);font-size:9px">백테스트 기준: ${posToLabel(c.position||0)}</span>`;
+  const stageColor = es===0 ? CV.dim : es===3 ? '#e05b4b' : '#38c4d8';
+  const pcClass    = es===0 ? 'pc-safe' : 'pc-entry';
+  const lastTrade  = trades.length ? trades[trades.length-1] : null;
+  const lastDate   = lastTrade ? (dates[lastTrade.index]||'—') : '—';
+  const lastType   = lastTrade ? (TAG_LABEL[lastTrade.type]||lastTrade.type) : '—';
 
-  document.getElementById('signalCard').innerHTML = `
-    <div class="signal-card sig-${sig}" style="border-color:${col}">
-      <div class="sc-sig" style="color:${col}">${SIG_MSG[sig]||sig}</div>
-      <div class="sc-meta">
-        <div class="sm-item">
-          <dt>현재 괴리율</dt>
-          <dd style="color:${div!=null&&div<0?'#e8a33a':div!=null&&div>0?'#3dbe7a':CV.dim}">
-            ${div!=null ? fp(div,true) : '—'}
-          </dd>
+  card.innerHTML = `
+    <div class="position-card ${pcClass}">
+      <div class="pc-header">
+        <div class="pc-stage" style="color:${stageColor}">${esLabel(es)}</div>
+        <div class="pc-badge" style="color:${stageColor};border-color:${stageColor}">
+          ${trades.length}회 실제 거래
         </div>
-        <div class="sm-item">
+      </div>
+      <div class="pc-grid">
+        <div class="pc-item">
+          <dt>현재 진입 단계</dt>
+          <dd style="color:${stageColor};font-size:18px">${es}차 / 3차</dd>
+        </div>
+        <div class="pc-item">
+          <dt>마지막 거래</dt>
+          <dd style="font-size:13px">${lastDate}<br><span style="color:var(--dim);font-size:11px">${lastType}</span></dd>
+        </div>
+        <div class="pc-item">
+          <dt>현재 괴리율</dt>
+          <dd style="color:${SIG_DIV_COLOR(div)}">${div!=null?fp(div,true):'—'}</dd>
+        </div>
+        <div class="pc-item">
           <dt>SPY 현재가</dt>
           <dd>${fmt(c.close)}</dd>
         </div>
-        <div class="sm-item">
-          <dt>실제 포지션</dt>
-          <dd>${posDisplay}<br>${posNote}</dd>
-        </div>
-        <div class="sm-item">
+        <div class="pc-item">
           <dt>36M 회귀 예측가</dt>
           <dd>${fmt(c.predicted)}</dd>
         </div>
-        <div class="sm-item">
-          <dt>신고가 (SAFE기준)</dt>
+        <div class="pc-item">
+          <dt>투자 시작일</dt>
+          <dd style="font-size:12px">${startDate}</dd>
+        </div>
+      </div>
+      <div class="pc-next">
+        <div class="pc-next-label">다음 액션</div>
+        <div style="font-size:12px;margin-top:2px">${nextAction}</div>
+      </div>
+    </div>`;
+}
+
+/* ── 신호 카드 (컴팩트) ── */
+function renderSignal(){
+  const a = getAsset(); if(!a) return;
+  const c   = a.current;
+  const div = c.divergence;
+  const sig = c.signal||'WAITING';
+  const divColor = SIG_DIV_COLOR(div);
+
+  const sigMap = {
+    WAITING:'#5a7490', HOLDING:'#e8a33a',
+    ENTRY1_READY:'#38c4d8', ENTRY2_READY:'#4a8fe8', ENTRY3_READY:'#3dbe7a',
+    EXIT_READY:'#e05b4b', REBAL_HOT_READY:'#26bfad', NO_SIGNAL:'#5a7490'
+  };
+  const col = sigMap[sig]||CV.dim;
+
+  document.getElementById('signalCard').innerHTML = `
+    <div class="signal-card" style="border-color:${col};background:rgba(0,0,0,.15)">
+      <div class="sc-div-block">
+        <div class="sc-div-num" style="color:${divColor}">${div!=null?fp(div,true):'—'}</div>
+        <div class="sc-div-label">현재 괴리율</div>
+      </div>
+      <div class="sc-right">
+        <div class="sc-item">
+          <dt>신호</dt>
+          <dd style="color:${col}">${SIG_MSG[sig]||sig}</dd>
+        </div>
+        <div class="sc-item">
+          <dt>SPY 현재가</dt>
+          <dd>${fmt(c.close)}</dd>
+        </div>
+        <div class="sc-item">
+          <dt>36M 예측가</dt>
+          <dd>${fmt(c.predicted)}</dd>
+        </div>
+        <div class="sc-item">
+          <dt>신고가</dt>
           <dd>${fmt(c.peak)}</dd>
         </div>
-        <div class="sm-item">
+        <div class="sc-item">
           <dt>기준일</dt>
           <dd>${c.date||'—'}</dd>
+        </div>
+        <div class="sc-item">
+          <dt>백테스트 포지션</dt>
+          <dd style="color:var(--dim)">${posLabel(c.position||0)}</dd>
         </div>
       </div>
     </div>`;
 }
 
-// ── KPI ─────────────────────────────────────────────────────
-function renderKPI(){
-  const a = getAsset(); if(!a) return;
-  const trades = a.trades||[];
-  const dates  = a.dates||[];
+/* ── 실제 거래 로그 ── */
+function renderRealLog(){
+  const a = getAsset(); if(!a||!startDate) return;
+  const { trades } = calcRealPosition(a);
+  const dates = a.dates||[];
 
-  // 시작일 이후 실제 거래만 카운트
-  const realTrades = startDate
-    ? trades.filter(t => (dates[t.index]||'') >= startDate)
-    : [];
-  const allTrades = trades;
-
-  const n_real_entry = realTrades.filter(t=>t.type.startsWith('ENTRY')).length;
-  const n_sim_entry  = allTrades.filter(t=>t.type.startsWith('ENTRY')).length;
-  const m = a.metrics||{};
-
-  document.getElementById('kpiRow').innerHTML = [
-    {l: startDate ? '실제 진입' : '백테스트 진입',
-     v: startDate ? `${n_real_entry}회` : `${n_sim_entry}회`,
-     c: 'neu'},
-    {l: '백테스트 수익률', v: fp(m.total_return, true), c:(m.total_return||0)>=0?'pos':'neg'},
-    {l: '백테스트 거래',   v: `${allTrades.length}회`, c:'warn'},
-    {l: '투자 시작일', v: startDate||'미설정', c: startDate?'pos':'neg'},
-  ].map(k=>`<div class="kpi"><dt>${k.l}</dt><dd class="${k.c}" style="font-size:${startDate&&k.l==='투자 시작일'?'11px':'16px'}">${k.v}</dd></div>`).join('');
+  document.getElementById('realTradeStat').textContent = `${trades.length}회`;
+  if(!trades.length){
+    document.getElementById('realLogB').innerHTML =
+      `<tr><td colspan="5" style="text-align:center;color:var(--dim);padding:16px">
+        ${startDate} 이후 거래 없음 (신호 대기 중)
+      </td></tr>`;
+    return;
+  }
+  document.getElementById('realLogB').innerHTML = [...trades].reverse().map(t=>{
+    const date = dates[t.index]||'—';
+    const lbl  = TAG_LABEL[t.type]||t.type;
+    const tcol = TAG_COLOR[t.type]||'color:var(--dim)';
+    return`<tr>
+      <td style="font-weight:700">${date}</td>
+      <td><span class="tag" style="${tcol}">${lbl}</span></td>
+      <td style="color:${t.divergence<0?'#e8a33a':'#3dbe7a'}">${fp(t.divergence,true)}</td>
+      <td>${fmt(t.price)}</td>
+      <td style="color:var(--cyan)">${posLabel(t.position_after||0)}</td>
+    </tr>`;
+  }).join('');
 }
 
-// ── 가격 차트 ────────────────────────────────────────────────
-function drawPriceChart(){
+/* ── 백테스트 참고 로그 ── */
+function renderSimLog(){
   const a = getAsset(); if(!a) return;
-  const cv = document.getElementById('priceC');
-  cv.width = cv.parentElement.offsetWidth-24;
-  const W=cv.width, H=cv.height;
-  const ctx=cv.getContext('2d');
-  const P={l:70,r:12,t:12,b:24};
-
-  const closes = a.closes||[];
-  const preds  = a.predicted||[];
   const dates  = a.dates||[];
-  const SHOW   = Math.min(closes.length, 900);
-  const sl = closes.slice(-SHOW), pl = preds.slice(-SHOW), dl = dates.slice(-SHOW);
-  const globalStartIdx = closes.length - SHOW; // 표시 구간의 절대 시작 인덱스
+  const trades = [...(a.latest_trades||[])].reverse();
+  document.getElementById('simStat').textContent = `최근 ${trades.length}건`;
+  document.getElementById('simLogB').innerHTML = trades.map(t=>{
+    const date    = dates[t.index]||'—';
+    const isSim   = !startDate || date < startDate;
+    const lbl     = TAG_LABEL[t.type]||t.type;
+    const tcol    = TAG_COLOR[t.type]||'color:var(--dim)';
+    return`<tr class="${isSim?'sim-row':''}">
+      <td>${date}</td>
+      <td><span class="tag" style="${tcol}">${lbl}</span></td>
+      <td style="color:${t.divergence<0?'#e8a33a':'#3dbe7a'}">${fp(t.divergence,true)}</td>
+      <td>${fmt(t.price)}</td>
+      <td>${posLabel(t.position_after||0)}</td>
+    </tr>`;
+  }).join('');
+}
 
-  const allV = [...sl, ...pl.filter(v=>v!=null)];
+/* ── 가격 차트 ── */
+function drawPriceChart(){
+  const a=getAsset(); if(!a) return;
+  const cv=document.getElementById('priceC');
+  cv.width=cv.parentElement.offsetWidth-24;
+  const W=cv.width,H=cv.height,P={l:68,r:12,t:10,b:22};
+  const ctx=cv.getContext('2d');
+  const closes=a.closes||[],preds=a.predicted||[],dates=a.dates||[];
+  const SHOW=Math.min(closes.length,900);
+  const sl=closes.slice(-SHOW),pl=preds.slice(-SHOW),dl=dates.slice(-SHOW);
+  const gStart=closes.length-SHOW;
+  const allV=[...sl,...pl.filter(v=>v!=null)];
   if(!allV.length) return;
-  const lo=Math.min(...allV)*0.97, hi=Math.max(...allV)*1.03;
+  const lo=Math.min(...allV)*0.97,hi=Math.max(...allV)*1.03;
   const toY=v=>P.t+(1-(v-lo)/(hi-lo))*(H-P.t-P.b);
   const toX=(_,i)=>P.l+(i/(sl.length-1||1))*(W-P.l-P.r);
   ctx.clearRect(0,0,W,H);
 
-  // 그리드
   [lo,(lo+hi)/2,hi].forEach(v=>{
     const y=toY(v);
     ctx.strokeStyle='rgba(30,45,66,0.4)';ctx.lineWidth=1;ctx.setLineDash([]);
@@ -434,47 +503,43 @@ function drawPriceChart(){
     ctx.fillStyle=CV.dim;ctx.font='10px monospace';ctx.textAlign='right';
     ctx.fillText(v>=1000?v.toFixed(0):v.toFixed(1),P.l-3,y+3);
   });
-  ctx.fillStyle=CV.dim;ctx.font='10px monospace';ctx.textAlign='center';
+  ctx.fillStyle=CV.dim;ctx.font='9px monospace';ctx.textAlign='center';
   [0,Math.floor(SHOW/3),Math.floor(SHOW*2/3),SHOW-1].forEach(i=>{
     if(i<dl.length) ctx.fillText(dl[i]?.slice(0,7)||'',toX(0,i),H-P.b+14);
   });
 
-  // 시작일 수직선
+  // 시작일 배경 + 수직선
   if(startDate){
-    const si = dl.findIndex(d=>d>=startDate);
+    const si=dl.findIndex(d=>d&&d>=startDate);
     if(si>=0){
-      const sx = toX(0,si);
       ctx.save();
+      ctx.fillStyle='rgba(61,190,122,0.04)';
+      ctx.fillRect(toX(0,si),P.t,W-P.r-toX(0,si),H-P.t-P.b);
       ctx.strokeStyle=CV.start_line;ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
-      ctx.beginPath();ctx.moveTo(sx,P.t);ctx.lineTo(sx,H-P.b);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(toX(0,si),P.t);ctx.lineTo(toX(0,si),H-P.b);ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle=CV.start_line;ctx.font='9px monospace';ctx.textAlign='left';
-      ctx.fillText('투자시작',sx+3,P.t+10);
+      ctx.fillText('투자시작',toX(0,si)+3,P.t+10);
       ctx.restore();
     }
   }
 
-  // 회귀선
   ctx.save();ctx.strokeStyle=CV.pred;ctx.lineWidth=1.5;ctx.setLineDash([3,3]);
   ctx.beginPath();let st=false;
   pl.forEach((v,i)=>{if(v!=null){st?ctx.lineTo(toX(v,i),toY(v)):ctx.moveTo(toX(v,i),toY(v));st=true;}});
   ctx.stroke();ctx.restore();
 
-  // 가격선
   ctx.save();ctx.strokeStyle=CV.price;ctx.lineWidth=2;ctx.setLineDash([]);
   ctx.beginPath();sl.forEach((v,i)=>i?ctx.lineTo(toX(v,i),toY(v)):ctx.moveTo(toX(v,i),toY(v)));
   ctx.stroke();ctx.restore();
 
-  // 거래 마커 (시작일 이전: 반투명, 이후: 선명)
-  const trades = a.trades||[];
-  trades.forEach(t=>{
-    const ri = t.index - globalStartIdx;
+  (a.trades||[]).forEach(t=>{
+    const ri=t.index-gStart;
     if(ri<0||ri>=sl.length) return;
-    const tradeDate = dates[t.index]||'';
-    const isSim = startDate && tradeDate < startDate;
-    const x=toX(0,ri), y=toY(sl[ri]);
-    ctx.save();
-    ctx.globalAlpha = isSim ? 0.3 : 1.0;
+    const td=dates[t.index]||'';
+    const isSim=startDate&&td<startDate;
+    const x=toX(0,ri),y=toY(sl[ri]);
+    ctx.save();ctx.globalAlpha=isSim?0.25:1.0;
     if(t.type.startsWith('ENTRY')){
       ctx.fillStyle=CV.entry;ctx.beginPath();
       ctx.moveTo(x,y-6);ctx.lineTo(x-3,y+1);ctx.lineTo(x+3,y+1);ctx.closePath();ctx.fill();
@@ -490,55 +555,51 @@ function drawPriceChart(){
   });
 
   document.getElementById('priceLeg').innerHTML=[
-    `<span><span class="lw" style="background:${CV.price}"></span>SPY 가격</span>`,
+    `<span><span class="lw" style="background:${CV.price}"></span>SPY</span>`,
     `<span><span class="lw" style="background:${CV.pred};opacity:.7"></span>36M 회귀선</span>`,
-    startDate ? `<span><span class="lw" style="background:${CV.start_line}"></span>투자시작</span>` : '',
+    startDate?`<span><span class="lw" style="background:${CV.start_line}"></span>투자시작</span>`:'',
     `<span><span class="lt" style="border-bottom-color:${CV.entry}"></span>진입</span>`,
     `<span><span class="ld" style="background:${CV.exit}"></span>청산</span>`,
-    `<span><span class="lsq" style="background:${CV.rebal_hot}"></span>과열리밸</span>`,
-    `<span><span class="ld" style="background:${CV.rebal_down}"></span>하락리밸</span>`,
-    startDate ? `<span style="color:var(--dim)">반투명=백테스트참고</span>` : '',
+    `<span><span class="ld" style="background:${CV.rebal_hot}"></span>과열리밸</span>`,
+    startDate?`<span style="color:var(--dim)">(희미=백테스트)</span>`:'',
   ].filter(Boolean).join('');
-  document.getElementById('cn').textContent = `최근 ${SHOW}거래일`;
+  document.getElementById('cn').textContent=`최근 ${SHOW}거래일`;
 }
 
-// ── 괴리율 차트 ──────────────────────────────────────────────
+/* ── 괴리율 차트 ── */
 function drawDivChart(){
-  const a = getAsset(); if(!a) return;
+  const a=getAsset(); if(!a) return;
   const cv=document.getElementById('divC');
   cv.width=cv.parentElement.offsetWidth-24;
-  const W=cv.width,H=cv.height;
+  const W=cv.width,H=cv.height,P={l:48,r:12,t:8,b:20};
   const ctx=cv.getContext('2d');
-  const P={l:52,r:12,t:10,b:22};
-
   const SHOW=Math.min((a.divergence||[]).length,900);
   const divs=(a.divergence||[]).slice(-SHOW).map(v=>v??null);
   const dates=(a.dates||[]).slice(-SHOW);
   const vals=divs.filter(v=>v!=null);
   if(!vals.length) return;
-
   const lo=Math.min(-25,...vals),hi=Math.max(25,...vals);
   const toY=v=>P.t+(1-(v-lo)/(hi-lo))*(H-P.t-P.b);
   const toX=(_,i)=>P.l+(i/(divs.length-1||1))*(W-P.l-P.r);
   ctx.clearRect(0,0,W,H);
 
   [-15,-10,-5,0,5,10,20].forEach(v=>{
-    const y=toY(v); const isKey=[0,5,-5].includes(v);
-    ctx.strokeStyle=isKey?'rgba(90,116,144,0.4)':'rgba(30,45,66,0.3)';
+    const y=toY(v),isKey=[0,-5,5].includes(v);
+    ctx.strokeStyle=isKey?'rgba(90,116,144,0.35)':'rgba(30,45,66,0.25)';
     ctx.lineWidth=1;ctx.setLineDash(isKey?[]:[2,4]);
     ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(W-P.r,y);ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle=CV.dim;ctx.font='9px monospace';ctx.textAlign='right';
     ctx.fillText(v+'%',P.l-2,y+3);
   });
 
-  // 시작일 이전 배경 어둡게
   if(startDate){
-    const si=dates.findIndex(d=>d>=startDate);
+    const si=dates.findIndex(d=>d&&d>=startDate);
     if(si>0){
-      ctx.save();
-      ctx.fillStyle='rgba(12,16,24,0.45)';
-      ctx.fillRect(P.l,P.t,toX(0,si)-P.l,H-P.t-P.b);
-      ctx.restore();
+      ctx.save();ctx.fillStyle='rgba(12,16,24,0.5)';
+      ctx.fillRect(P.l,P.t,toX(0,si)-P.l,H-P.t-P.b);ctx.restore();
+      ctx.save();ctx.strokeStyle=CV.start_line;ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
+      ctx.beginPath();ctx.moveTo(toX(0,si),P.t);ctx.lineTo(toX(0,si),H-P.b);ctx.stroke();
+      ctx.setLineDash([]);ctx.restore();
     }
   }
 
@@ -546,92 +607,61 @@ function drawDivChart(){
   ctx.save();ctx.beginPath();ctx.moveTo(toX(0,0),zeroY);
   divs.forEach((v,i)=>{if(v!=null)ctx.lineTo(toX(v,i),toY(v));else ctx.lineTo(toX(null,i),zeroY);});
   ctx.lineTo(toX(0,divs.length-1),zeroY);ctx.closePath();
-  ctx.fillStyle='rgba(74,143,232,0.08)';ctx.fill();ctx.restore();
+  ctx.fillStyle='rgba(74,143,232,0.07)';ctx.fill();ctx.restore();
 
   ctx.save();ctx.strokeStyle=CV.div_line;ctx.lineWidth=1.5;ctx.setLineDash([]);
   ctx.beginPath();let s=false;
   divs.forEach((v,i)=>{if(v!=null){s?ctx.lineTo(toX(v,i),toY(v)):ctx.moveTo(toX(v,i),toY(v));s=true;}else s=false;});
   ctx.stroke();ctx.restore();
 
-  // 시작일 수직선
-  if(startDate){
-    const si=dates.findIndex(d=>d>=startDate);
-    if(si>=0){
-      ctx.save();ctx.strokeStyle=CV.start_line;ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
-      ctx.beginPath();ctx.moveTo(toX(0,si),P.t);ctx.lineTo(toX(0,si),H-P.b);ctx.stroke();
-      ctx.setLineDash([]);ctx.restore();
-    }
-  }
-
   ctx.fillStyle=CV.dim;ctx.font='9px monospace';ctx.textAlign='center';
   [0,Math.floor(SHOW/3),Math.floor(SHOW*2/3),SHOW-1].forEach(i=>{
-    if(i<dates.length) ctx.fillText(dates[i]?.slice(0,7)||'',toX(0,i),H-P.b+14);
+    if(i<dates.length)ctx.fillText(dates[i]?.slice(0,7)||'',toX(0,i),H-P.b+13);
   });
 }
 
-// ── 파라미터 ─────────────────────────────────────────────────
+/* ── 파라미터 ── */
 function renderParams(){
   document.getElementById('paramGrid').innerHTML=`
     <div class="param-box">
-      <div class="pb-title">📋 포트폴리오 기본 설정</div>
+      <div class="pb-title">포트폴리오 설정</div>
       <div class="pb-row"><span class="pb-key">기본 비중</span><span class="pb-val pos">SPY 40% · QQQ 20% · SGOV 40%</span></div>
       <div class="pb-row"><span class="pb-key">월 DCA</span><span class="pb-val">SPY $200 · QQQ $100 · SGOV $200</span></div>
       <div class="pb-row"><span class="pb-key">신호 기준</span><span class="pb-val">SPY 36M 롤링 회귀선 괴리율</span></div>
-      <div class="pb-row"><span class="pb-key">1차 진입 (-5%)</span><span class="pb-val">SGOV 순자산×12% → SPY:QQQ=2:1</span></div>
-      <div class="pb-row"><span class="pb-key">2차 진입 (-10%)</span><span class="pb-val">SGOV 순자산×12% → SPY:QQQ=2:1</span></div>
-      <div class="pb-row"><span class="pb-key">3차 진입 (-15%)</span><span class="pb-val">SGOV 잔액 전부(≈16%) → SPY:QQQ=2:1</span></div>
+      <div class="pb-row"><span class="pb-key">1차 진입 (-5%)</span><span class="pb-val">SGOV×12% → SPY:QQQ=2:1</span></div>
+      <div class="pb-row"><span class="pb-key">2차 진입 (-10%)</span><span class="pb-val">SGOV×12% → SPY:QQQ=2:1</span></div>
+      <div class="pb-row"><span class="pb-key">3차 진입 (-15%)</span><span class="pb-val">SGOV 잔액 전부 → SPY:QQQ=2:1</span></div>
     </div>
     <div class="param-box">
-      <div class="pb-title">📋 청산 · 리밸런싱</div>
-      <div class="pb-row"><span class="pb-key">청산 1차 (+5%)</span><span class="pb-val warn">전술 포지션 50% 매도 → SGOV</span></div>
-      <div class="pb-row"><span class="pb-key">청산 2차 (+10%)</span><span class="pb-val neg">전술 포지션 전량 → SAFE 복귀</span></div>
-      <div class="pb-row"><span class="pb-key">과열 리밸 (+20% 교차)</span><span class="pb-val" style="color:var(--teal)">전체 포트 40:20:40 복원 (제한없음)</span></div>
-      <div class="pb-row"><span class="pb-key">하락 리밸1 (평단-20%)</span><span class="pb-val" style="color:var(--purple)">외부현금 총자산×25% 투입</span></div>
+      <div class="pb-title">청산 · 리밸런싱</div>
+      <div class="pb-row"><span class="pb-key">청산 1차 (+5%)</span><span class="pb-val warn">전술 50% 매도 → SGOV</span></div>
+      <div class="pb-row"><span class="pb-key">청산 2차 (+10%)</span><span class="pb-val neg">전술 전량 → SAFE</span></div>
+      <div class="pb-row"><span class="pb-key">과열 리밸 (+20%교차)</span><span class="pb-val" style="color:var(--teal)">40:20:40 복원 (제한없음)</span></div>
+      <div class="pb-row"><span class="pb-key">하락 리밸1 (평단-20%)</span><span class="pb-val" style="color:var(--purple)">외부현금 총자산×25%</span></div>
       <div class="pb-row"><span class="pb-key">하락 리밸2 (평단-40%)</span><span class="pb-val" style="color:var(--purple)">외부현금 총자산×25% 추가</span></div>
       <div class="pb-row"><span class="pb-key">수수료</span><span class="pb-val">0.5% 편도</span></div>
     </div>`;
 }
 
-// ── 거래 로그 ────────────────────────────────────────────────
-function renderLog(){
-  const a = getAsset(); if(!a) return;
-  const dates  = a.dates||[];
-  const trades = [...(a.latest_trades||[])].reverse();
-
-  document.getElementById('logB').innerHTML = trades.map(t=>{
-    const date    = dates[t.index]||'—';
-    const isSim   = startDate && date < startDate;
-    const lbl     = TAG_LABEL[t.type]||t.type;
-    const tcol    = TAG_COLOR[t.type]||'color:var(--dim)';
-    const div     = t.divergence;
-    const posLbl  = posToLabel(t.position_after||0);
-    const simBadge = isSim
-      ? `<span style="font-family:var(--mono);font-size:8px;color:var(--dim);margin-left:4px">백테스트</span>`
-      : `<span style="font-family:var(--mono);font-size:8px;color:var(--green);margin-left:4px">실제</span>`;
-    return`<tr class="${isSim?'sim-row':''}">
-      <td>${date}</td>
-      <td><span class="tag" style="${tcol}">${lbl}</span>${simBadge}</td>
-      <td style="color:${div<0?'#e8a33a':'#3dbe7a'}">${fp(div,true)}</td>
-      <td>${fmt(t.price)}</td>
-      <td>${posLbl}</td>
-      <td style="color:${isSim?'var(--dim)':'var(--green)'};font-size:9px">${isSim?'참고':'실제'}</td>
-    </tr>`;
-  }).join('');
-
-  const all = a.trades||[];
-  const realCount = startDate
-    ? all.filter(t=>(dates[t.index]||'')>=startDate).length
-    : 0;
-  document.getElementById('tradeStat').textContent = startDate
-    ? `실제 ${realCount}회 | 백테스트 전체 ${all.length}회`
-    : `백테스트 전체 ${all.length}회 (시작일 미설정)`;
+/* ── 패널 토글 ── */
+function togglePanel(ph){
+  const pb = ph.nextElementSibling;
+  const tog = ph.querySelector('.toggle');
+  const hidden = pb.style.display==='none';
+  pb.style.display = hidden ? '' : 'none';
+  if(tog) tog.textContent = hidden ? '▲' : '▼';
+  if(hidden){ drawPriceChart(); drawDivChart(); }
 }
 
-// ── 메인 ─────────────────────────────────────────────────────
+/* ── 전체 렌더 ── */
 function renderAll(){
-  renderSignal();renderKPI();
-  drawPriceChart();drawDivChart();
-  renderParams();renderLog();
+  renderPositionCard();
+  renderSignal();
+  drawPriceChart();
+  drawDivChart();
+  renderRealLog();
+  renderSimLog();
+  renderParams();
 }
 
 function sw(t,btn){
@@ -650,10 +680,9 @@ async function init(){
     const dt=new Date(D.generated_at);
     document.getElementById('genAt').textContent=
       `업데이트: ${dt.toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})} KST`;
+    if(startDate) document.getElementById('startDateInput').value=startDate;
     document.getElementById('loading').style.display='none';
     document.getElementById('app').style.display='block';
-    // 저장된 시작일 복원
-    if(startDate) document.getElementById('startDateInput').value=startDate;
     updateStartBanner();
     renderAll();
   }catch(e){
