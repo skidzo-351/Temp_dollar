@@ -82,6 +82,13 @@ main{max-width:1080px;margin:0 auto;padding:14px 20px 80px}
 .pct-under{color:var(--cyan)}
 .pct-ok{color:var(--green)}
 
+/* ── 수익률 요약 ── */
+.returns-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--b)}
+@media(max-width:580px){.returns-grid{grid-template-columns:repeat(2,1fr)}}
+.ret-item{background:rgba(0,0,0,.2);border-radius:5px;padding:9px 11px;text-align:center}
+.ret-item dt{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.ret-item dd{font-family:var(--mono);font-size:16px;font-weight:700}
+
 /* 비중 시각화 바 */
 .alloc-bar-wrap{margin-bottom:8px}
 .alloc-bar{display:flex;height:20px;border-radius:4px;overflow:hidden;gap:2px}
@@ -190,11 +197,21 @@ tr.sim-row td{opacity:.3}
       <div class="port-header">
         <div>
           <div class="port-title">실제 보유 현황</div>
-          <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:2px">수량 입력 시 평가금·비중 자동 계산</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:2px">수량 입력 시 평가금·비중·수익률 자동 계산</div>
         </div>
-        <div style="text-align:right">
-          <div class="port-total-label">총 평가금 (+ 대기자금)</div>
-          <div class="port-total" id="portTotal">$0</div>
+        <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
+          <div style="text-align:right">
+            <div class="port-total-label">초기 투자금 (수수료 포함)</div>
+            <div style="display:flex;align-items:center;gap:5px;justify-content:flex-end;margin-top:3px">
+              <span style="font-family:var(--mono);font-size:13px;color:var(--dim)">$</span>
+              <input class="pa-input" type="number" id="inINIT" min="0" step="100" placeholder="0" oninput="calcPort()" style="width:110px;font-size:13px;padding:4px 7px">
+            </div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:2px">매수 시 수수료 0.5% 반영</div>
+          </div>
+          <div style="text-align:right">
+            <div class="port-total-label">현재 총 평가금</div>
+            <div class="port-total" id="portTotal">$0</div>
+          </div>
         </div>
       </div>
 
@@ -277,6 +294,26 @@ tr.sim-row td{opacity:.3}
 
       <!-- 비중 요약 메시지 -->
       <div id="allocMsg" style="font-family:var(--mono);font-size:11px;color:var(--dim);padding:4px 2px"></div>
+
+      <!-- 수익률 요약 -->
+      <div class="returns-grid" id="returnsGrid" style="display:none">
+        <div class="ret-item">
+          <dt>총 손익</dt>
+          <dd id="retPnL">$—</dd>
+        </div>
+        <div class="ret-item">
+          <dt>수익률</dt>
+          <dd id="retPct">—%</dd>
+        </div>
+        <div class="ret-item">
+          <dt>초기 투자금</dt>
+          <dd id="retInit" style="color:var(--dim)">$—</dd>
+        </div>
+        <div class="ret-item">
+          <dt>평가금 - 투자금</dt>
+          <dd id="retDiff" style="font-size:13px">$—</dd>
+        </div>
+      </div>
     </div>
 
     <!-- 탭 -->
@@ -357,8 +394,9 @@ tr.sim-row td{opacity:.3}
 const LS = {
   start: 'sgov_start_date',
   cl:    'sgov_checklist',      // {spy:bool, qqq:bool, sgov:bool}
-  port:  'sgov_portfolio',      // {spy:num, qqq:num, sgov:num, cash:num}
+  port:  'sgov_portfolio',      // {spy:num, qqq:num, sgov:num, cash:num, init:num}
 };
+const COMM = 0.005; // 수수료 0.5%
 let D = null, curTicker = 'SPY';
 let startDate = localStorage.getItem(LS.start) || '';
 
@@ -492,6 +530,7 @@ function savePort(){
     qqq:  parseFloat(document.getElementById('inQQQ').value)||0,
     sgov: parseFloat(document.getElementById('inSGOV').value)||0,
     cash: parseFloat(document.getElementById('inCASH').value)||0,
+    init: parseFloat(document.getElementById('inINIT').value)||0,
   }));
 }
 function loadPortInputs(){
@@ -500,6 +539,7 @@ function loadPortInputs(){
   document.getElementById('inQQQ').value  = p.qqq  ||'';
   document.getElementById('inSGOV').value = p.sgov ||'';
   document.getElementById('inCASH').value = p.cash ||'';
+  document.getElementById('inINIT').value = p.init ||'';
 }
 
 function calcPort(){
@@ -574,6 +614,30 @@ function calcPort(){
   document.getElementById('barQQQ').textContent  = pQQQ>5  ? pQQQ.toFixed(0)+'%':'';
   document.getElementById('barSGOV').textContent = pSGOV>5 ? pSGOV.toFixed(0)+'%':'';
   document.getElementById('barCASH').textContent = pCASH>5 ? pCASH.toFixed(0)+'%':'';
+
+  // 수익률 계산
+  const initVal = parseFloat(document.getElementById('inINIT').value)||0;
+  const rGrid   = document.getElementById('returnsGrid');
+  if(initVal > 0 && total > 0){
+    // 실제 수익 = 현재 평가금 - 초기 투자금(수수료 포함 이미 반영된 금액)
+    const pnl     = total - initVal;
+    const pnlPct  = pnl / initVal * 100;
+    // 수수료 환산: 초기 투자금에서 0.5% 수수료가 이미 나간 것으로 가정
+    // 순 매수원금 = initVal / (1 + COMM)
+    const netCost = initVal / (1 + COMM);
+    const commPaid = initVal - netCost;
+
+    document.getElementById('retPnL').textContent  = (pnl>=0?'+':'')+fmt(pnl);
+    document.getElementById('retPnL').style.color  = pnl>=0?'var(--green)':'var(--red)';
+    document.getElementById('retPct').textContent  = (pnlPct>=0?'+':'')+pnlPct.toFixed(2)+'%';
+    document.getElementById('retPct').style.color  = pnlPct>=0?'var(--green)':'var(--red)';
+    document.getElementById('retInit').textContent = fmt(initVal);
+    document.getElementById('retDiff').textContent = (pnl>=0?'+':'')+fmt(pnl);
+    document.getElementById('retDiff').style.color = pnl>=0?'var(--green)':'var(--red)';
+    rGrid.style.display='';
+  } else {
+    rGrid.style.display='none';
+  }
 
   // 요약 메시지
   const msgs = [];
