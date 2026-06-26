@@ -8,6 +8,7 @@ on:
     branches: [ main ]
     paths:
       - 'scripts/**'
+      - 'docs/index.html'        # data.json 제외 — 봇 커밋이 재트리거 안 되게
       - '.github/workflows/**'
 
 permissions:
@@ -16,7 +17,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: daily-signal-update
+  group: "pages"                 # deploy-pages 공식 권장 그룹명
   cancel-in-progress: true
 
 jobs:
@@ -50,23 +51,17 @@ jobs:
             echo "No changes in data.json — skipping commit"
           else
             git add docs/data.json
-            git commit -m "chore: daily signal update $(date -u +'%Y-%m-%d %H:%M UTC')"
-            # ensure origin/main exists locally
+            git commit -m "chore: daily signal update $(date -u +'%Y-%m-%d %H:%M UTC') [skip ci]"
             git fetch origin main --no-tags
-            # attempt to rebase onto origin/main, fall back to merge if rebase fails
             if git rebase origin/main; then
               echo "Rebased onto origin/main"
             else
-              echo "Rebase failed — aborting and merging origin/main"
               git rebase --abort || true
               git merge --no-edit origin/main || true
             fi
-            # push the updated branch to origin main explicitly
             git push origin HEAD:main
           fi
-    
-      
-      
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -74,6 +69,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: 'docs'
+          retention-days: 1
 
       - name: Deploy to GitHub Pages
         id: deployment
