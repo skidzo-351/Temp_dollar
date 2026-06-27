@@ -383,7 +383,7 @@ tr.sim-row td{opacity:.3}
     <!-- 차트 -->
     <div class="panel">
       <div class="ph" onclick="togglePanel(this)">
-        <span>가격 + 36M 회귀선</span>
+        <span>가격 + 60M 회귀선</span>
         <span id="cn" style="color:var(--amber);margin-right:8px"></span>
       </div>
       <div class="pb">
@@ -395,7 +395,7 @@ tr.sim-row td{opacity:.3}
     <div class="panel">
       <div class="ph" onclick="togglePanel(this)">
         <span>괴리율 히스토리</span>
-        <span style="color:var(--dim);font-size:10px">-5/-10/-15% | +5/+10% | +20%</span>
+        <span style="color:var(--dim);font-size:10px">-5/-10/-15% | 리밸+15% | +20%</span>
       </div>
       <div class="pb"><canvas id="divC" height="140"></canvas></div>
     </div>
@@ -901,7 +901,7 @@ function renderSignal(){
       <div class="sc-right">
         <div class="sc-item"><dt>신호</dt><dd style="color:${col}">${SIG_MSG[sig]||sig}</dd></div>
         <div class="sc-item"><dt>SPY 현재가</dt><dd>${fmt(c.close)}</dd></div>
-        <div class="sc-item"><dt>36M 예측가</dt><dd>${fmt(c.predicted)}</dd></div>
+        <div class="sc-item"><dt>60M 예측가</dt><dd>${fmt(c.predicted)}</dd></div>
         <div class="sc-item"><dt>신고가</dt><dd>${fmt(c.peak)}</dd></div>
         <div class="sc-item"><dt>기준일</dt><dd>${c.date||'—'}</dd></div>
         <div class="sc-item"><dt>백테스트</dt><dd style="color:var(--dim)">${pLbl(c.position||0)}</dd></div>
@@ -957,7 +957,7 @@ function drawPriceChart(){
   const W=cv.width,H=cv.height,P={l:66,r:10,t:10,b:22};
   const ctx=cv.getContext('2d');
   const closes=a.closes||[],preds=a.predicted||[],dates=a.dates||[];
-  const SHOW=Math.min(closes.length,900);
+  const SHOW=Math.min(closes.length,120);
   const sl=closes.slice(-SHOW),pl=preds.slice(-SHOW),dl=dates.slice(-SHOW);
   const gS=closes.length-SHOW;
   const allV=[...sl,...pl.filter(v=>v!=null)];
@@ -1025,12 +1025,12 @@ function drawPriceChart(){
 
   document.getElementById('priceLeg').innerHTML=[
     `<span><span class="lw" style="background:${CV.price}"></span>SPY</span>`,
-    `<span><span class="lw" style="background:${CV.pred};opacity:.7"></span>36M 회귀선</span>`,
+    `<span><span class="lw" style="background:${CV.pred};opacity:.7"></span>60M 회귀선</span>`,
     startDate?`<span><span class="lw" style="background:${CV.start_line}"></span>투자시작</span>`:'',
     `<span><span class="lt" style="border-bottom-color:${CV.entry}"></span>진입</span>`,
     `<span><span class="ld" style="background:${CV.exit}"></span>청산</span>`,
   ].filter(Boolean).join('');
-  document.getElementById('cn').textContent=`최근 ${SHOW}거래일`;
+  document.getElementById('cn').textContent=`최근 ${SHOW}개월`;
 }
 
 /* ── 괴리율 차트 ── */
@@ -1040,7 +1040,7 @@ function drawDivChart(){
   cv.width=cv.parentElement.offsetWidth-24;
   const W=cv.width,H=cv.height,P={l:46,r:10,t:8,b:20};
   const ctx=cv.getContext('2d');
-  const SHOW=Math.min((a.divergence||[]).length,900);
+  const SHOW=Math.min((a.divergence||[]).length,120);
   const divs=(a.divergence||[]).slice(-SHOW).map(v=>v??null);
   const dates=(a.dates||[]).slice(-SHOW);
   const vals=divs.filter(v=>v!=null);
