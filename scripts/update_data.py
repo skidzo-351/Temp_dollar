@@ -2,7 +2,7 @@
 """
 최종 확정 전략 — 일간 신호 계산 스크립트
 포트폴리오: SPY 40% + QQQ 20% + SGOV 40%
-신호:       SPY 36M 롤링 회귀선 괴리율 (756 거래일)
+신호:       SPY 60M 롤링 회귀선 괴리율 (1260 거래일)
 진입:       -5% / -10% / -15%
 청산:       +5%=50%, +10%=전량
 과열 리밸:  +20% 교차 → 40:20:40 복원 (제한없음)
@@ -14,13 +14,13 @@ import json, os, urllib.request, time
 from datetime import datetime
 
 # ── 전략 파라미터 ────────────────────────────────────────────
-REG_WIN    = 756    # 36개월 (거래일 ≈ 756)
+REG_WIN    = 1260   # 60개월 (거래일 ≈ 1260)
 ENTRY1     = -5.0
 ENTRY2     = -10.0
 ENTRY3     = -15.0
 EXIT1_THR  = +5.0   # 분할 청산 1차 (+5%, 50%)
 EXIT2_THR  = +10.0  # 분할 청산 2차 (+10%, 전량)
-REBAL_THR  = +20.0  # 과열 리밸 트리거
+REBAL_THR  = +15.0  # 과열 리밸 트리거
 
 ENTRY1_PCT = 0.12   # 순자산×12%
 ENTRY2_PCT = 0.12
@@ -299,7 +299,7 @@ def build(ticker, cfg):
             'date':       dates[-1] if dates else None,
         },
         'params': {
-            'reg_window_days': REG_WIN,
+            'reg_window_days': REG_WIN,  # 60M
             'entry1': ENTRY1, 'entry2': ENTRY2, 'entry3': ENTRY3,
             'exit1': EXIT1_THR, 'exit2': EXIT2_THR,
             'rebal_hot': REBAL_THR,
