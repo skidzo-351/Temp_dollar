@@ -89,6 +89,21 @@ main{max-width:1080px;margin:0 auto;padding:14px 20px 80px}
 .ret-item dt{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
 .ret-item dd{font-family:var(--mono);font-size:16px;font-weight:700}
 
+/* ── 환율 배너 ── */
+.fx-banner{background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:10px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-family:var(--mono);font-size:11px}
+.fx-rate{font-size:16px;font-weight:700;color:var(--text)}
+.fx-krw{font-size:14px;font-weight:700;color:var(--green)}
+.fx-label{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em}
+.fx-change{font-size:11px;padding:2px 7px;border-radius:3px;font-weight:700}
+.fx-up{color:var(--red);background:rgba(224,91,75,.1)}
+.fx-dn{color:var(--green);background:rgba(61,190,122,.1)}
+.fx-time{font-size:9px;color:var(--dim);margin-left:auto}
+/* 원화 환산 수익률 */
+.krw-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--b)}
+.krw-item{background:rgba(0,0,0,.2);border-radius:5px;padding:8px 11px;text-align:center}
+.krw-item dt{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.krw-item dd{font-family:var(--mono);font-size:14px;font-weight:700}
+
 /* 비중 시각화 바 */
 .alloc-bar-wrap{margin-bottom:8px}
 .alloc-bar{display:flex;height:20px;border-radius:4px;overflow:hidden;gap:2px}
@@ -174,6 +189,25 @@ tr.sim-row td{opacity:.3}
 <main>
   <div id="loading">📡 신호 데이터 로딩 중...</div>
   <div id="app" style="display:none">
+
+    <!-- 환율 배너 -->
+    <div class="fx-banner" id="fxBanner">
+      <div>
+        <div class="fx-label">USD / KRW 환율</div>
+        <div class="fx-rate" id="fxRate">로딩 중...</div>
+      </div>
+      <div id="fxChange" class="fx-change" style="display:none"></div>
+      <div style="width:1px;height:30px;background:var(--b);flex-shrink:0"></div>
+      <div>
+        <div class="fx-label">총 평가금 (원화)</div>
+        <div class="fx-krw" id="fxKRW">—</div>
+      </div>
+      <div>
+        <div class="fx-label">손익 (원화)</div>
+        <div id="fxPnLKRW" class="fx-krw" style="color:var(--dim)">—</div>
+      </div>
+      <div class="fx-time" id="fxTime"></div>
+    </div>
 
     <!-- 투자 시작일 -->
     <div class="start-banner not-set" id="startBanner">
@@ -298,7 +332,7 @@ tr.sim-row td{opacity:.3}
       <!-- 수익률 요약 -->
       <div class="returns-grid" id="returnsGrid" style="display:none">
         <div class="ret-item">
-          <dt>총 손익</dt>
+          <dt>총 손익 (USD)</dt>
           <dd id="retPnL">$—</dd>
         </div>
         <div class="ret-item">
@@ -310,8 +344,23 @@ tr.sim-row td{opacity:.3}
           <dd id="retInit" style="color:var(--dim)">$—</dd>
         </div>
         <div class="ret-item">
-          <dt>평가금 - 투자금</dt>
+          <dt>현재 평가금</dt>
           <dd id="retDiff" style="font-size:13px">$—</dd>
+        </div>
+      </div>
+      <!-- 원화 환산 -->
+      <div class="krw-row" id="krwRow" style="display:none">
+        <div class="krw-item">
+          <dt>초기 투자금 (원화)</dt>
+          <dd id="krwInit" style="color:var(--dim)">—</dd>
+        </div>
+        <div class="krw-item">
+          <dt>현재 평가금 (원화)</dt>
+          <dd id="krwTotal">—</dd>
+        </div>
+        <div class="krw-item">
+          <dt>손익 (원화)</dt>
+          <dd id="krwPnL">—</dd>
         </div>
       </div>
     </div>
@@ -393,10 +442,12 @@ tr.sim-row td{opacity:.3}
 'use strict';
 const LS = {
   start: 'sgov_start_date',
-  cl:    'sgov_checklist',      // {spy:bool, qqq:bool, sgov:bool}
-  port:  'sgov_portfolio',      // {spy:num, qqq:num, sgov:num, cash:num, init:num}
+  cl:    'sgov_checklist',
+  port:  'sgov_portfolio',      // {spy, qqq, sgov, cash, init}
+  fx:    'sgov_fx_cache',       // {rate, prev, time}
 };
-const COMM = 0.005; // 수수료 0.5%
+const COMM = 0.005;
+let FX_RATE = 0; // 현재 USD/KRW (0=미로드)
 let D = null, curTicker = 'SPY';
 let startDate = localStorage.getItem(LS.start) || '';
 
@@ -520,6 +571,109 @@ function renderChecklist(){
         완료
       </label>
     </div>`).join('');
+}
+
+/* ── 환율 로드 ── */
+async function loadFX(){
+  // 캐시 확인 (1시간 이내면 재사용)
+  try{
+    const cached = JSON.parse(localStorage.getItem(LS.fx)||'{}');
+    if(cached.rate && cached.time && Date.now()-cached.time < 3600000){
+      FX_RATE = cached.rate;
+      renderFX(cached.rate, cached.prev, cached.time);
+      return;
+    }
+  }catch(e){}
+
+  // API 1: exchangerate.fun (키 불필요)
+  const urls = [
+    'https://api.exchangerate.fun/latest?base=USD',
+    'https://open.er-api.com/v6/latest/USD',
+  ];
+  for(const url of urls){
+    try{
+      const r = await fetch(url, {signal: AbortSignal.timeout(5000)});
+      if(!r.ok) continue;
+      const d = await r.json();
+      const rate = d.rates?.KRW || d.conversion_rates?.KRW;
+      if(!rate) continue;
+      FX_RATE = rate;
+      // 이전 캐시에서 prev rate 가져오기
+      let prev = 0;
+      try{ prev = JSON.parse(localStorage.getItem(LS.fx)||'{}').rate||0; }catch(e){}
+      const now = Date.now();
+      localStorage.setItem(LS.fx, JSON.stringify({rate, prev, time:now}));
+      renderFX(rate, prev, now);
+      return;
+    }catch(e){ continue; }
+  }
+  // 모두 실패 시
+  document.getElementById('fxRate').textContent = '환율 로드 실패';
+}
+
+function renderFX(rate, prev, time){
+  if(!rate) return;
+  const krwFmt = v => Math.round(v).toLocaleString('ko-KR')+'원';
+  const chg = prev ? rate - prev : 0;
+  document.getElementById('fxRate').textContent = `1 USD = ₩${Math.round(rate).toLocaleString()}`;
+  const chgEl = document.getElementById('fxChange');
+  if(prev && Math.abs(chg) > 0.1){
+    chgEl.style.display='';
+    chgEl.className = 'fx-change '+(chg>0?'fx-up':'fx-dn');
+    chgEl.textContent = (chg>0?'▲':'▼')+Math.abs(chg).toFixed(1);
+  }
+  const dt = new Date(time);
+  document.getElementById('fxTime').textContent =
+    `업데이트: ${dt.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})}`;
+  // 평가금 원화 업데이트
+  updateKRW();
+}
+
+function updateKRW(){
+  if(!FX_RATE) return;
+  const spy  = D?.assets?.SPY?.current?.close || 0;
+  const qqq  = D?.assets?.QQQ?.current?.close || 0;
+  const sgov = 100.62;
+  const nSPY  = parseFloat(document.getElementById('inSPY').value)||0;
+  const nQQQ  = parseFloat(document.getElementById('inQQQ').value)||0;
+  const nSGOV = parseFloat(document.getElementById('inSGOV').value)||0;
+  const cash  = parseFloat(document.getElementById('inCASH').value)||0;
+  const init  = parseFloat(document.getElementById('inINIT').value)||0;
+  const total = nSPY*spy + nQQQ*qqq + nSGOV*sgov + cash;
+  const pnlUSD = init>0 ? total-init : 0;
+
+  const krwFmt = v => {
+    const abs = Math.abs(Math.round(v));
+    const s = v<0?'-':'';
+    if(abs>=100000000) return s+'₩'+(abs/100000000).toFixed(1)+'억';
+    if(abs>=10000)     return s+'₩'+(abs/10000).toFixed(1)+'만';
+    return s+'₩'+abs.toLocaleString();
+  };
+
+  // 배너 업데이트
+  document.getElementById('fxKRW').textContent  = total>0 ? krwFmt(total*FX_RATE) : '—';
+  const pnlKRWEl = document.getElementById('fxPnLKRW');
+  if(init>0 && total>0){
+    const pnlKRW = pnlUSD*FX_RATE;
+    pnlKRWEl.textContent = (pnlKRW>=0?'+':'')+krwFmt(pnlKRW);
+    pnlKRWEl.style.color = pnlKRW>=0?'var(--green)':'var(--red)';
+  } else {
+    pnlKRWEl.textContent='—';
+    pnlKRWEl.style.color='var(--dim)';
+  }
+
+  // 수익률 섹션 원화 행
+  if(init>0 && total>0){
+    document.getElementById('krwInit').textContent  = krwFmt(init*FX_RATE);
+    document.getElementById('krwTotal').textContent = krwFmt(total*FX_RATE);
+    const pnlKRW = pnlUSD*FX_RATE;
+    const krwPnLEl = document.getElementById('krwPnL');
+    krwPnLEl.textContent = (pnlKRW>=0?'+':'')+krwFmt(pnlKRW);
+    krwPnLEl.style.color = pnlKRW>=0?'var(--green)':'var(--red)';
+    document.getElementById('krwRow').style.display='';
+  } else {
+    document.getElementById('krwRow').style.display='none';
+  }
 }
 
 /* ── 포트폴리오 계산 ── */
@@ -649,6 +803,9 @@ function calcPort(){
   document.getElementById('allocMsg').innerHTML = msgs.length
     ? `<span style="color:var(--amber)">⚠ 비중 이탈: </span>${msgs.join(' · ')}`
     : `<span style="color:var(--green)">✅ 목표 비중 유지 중</span>`;
+
+  // 원화 환산 업데이트
+  updateKRW();
 }
 
 /* ── 실제 포지션 계산 ── */
@@ -996,6 +1153,9 @@ async function init(){
     updateStartBanner();
     loadPortInputs();
     renderAll();
+    loadFX();
+    // 30분마다 환율 자동 갱신
+    setInterval(loadFX, 30*60*1000);
   }catch(e){
     document.getElementById('loading').textContent='⚠️ 데이터 로드 실패: '+e.message;
   }
