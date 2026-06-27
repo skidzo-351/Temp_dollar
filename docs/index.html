@@ -181,8 +181,8 @@ tr.sim-row td{opacity:.3}
   <div class="hb">
     <span class="bg">SPY 40% + QQQ 20% + SGOV 40%</span>
     <span class="ba">진입 -5/-10/-15% | 청산 +5%/+10%</span>
-    <span class="bb">36M 롤링 회귀선</span>
-    <span class="bp">과열 리밸 +20% | 하락 리밸 평단-20%/-40%</span>
+    <span class="bb">60M 롤링 회귀선</span>
+    <span class="bp">과열 리밸 +15% | 하락 리밸 평단-20%/-40%</span>
   </div>
 </header>
 
@@ -470,7 +470,7 @@ const TAG_COLOR = {
 const SIG_MSG = {
   WAITING:'관망 중 — SGOV 보유', HOLDING:'포지션 보유 중',
   ENTRY1_READY:'⚡ 1차 진입 가능', ENTRY2_READY:'⚡ 2차 진입 가능', ENTRY3_READY:'⚡ 3차 진입 가능',
-  EXIT_READY:'💰 청산 신호', REBAL_HOT_READY:'⚖️ 과열 리밸 가능',
+  EXIT_READY:'💰 청산 신호', REBAL_HOT_READY:'⚖️ 과열 리밸 가능 (+15% 교차)',
 };
 const divColor = d => d==null?CV.dim:d<-10?'#e05b4b':d<-3?'#e8a33a':d>15?'#26bfad':d>5?'#e8a33a':'#3dbe7a';
 const fmt  = v => (v==null||isNaN(v))?'—':'$'+Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
@@ -531,7 +531,7 @@ function renderChecklist(){
     {
       key:'spy', done:cl.spy,
       ticker:'SPY', label:'기본 비중 40% 진입',
-      desc:'회귀선 근처 (+1.32%) — 지금 바로 진입 적기',
+      desc:'60M 회귀선 기준 괴리율 확인 후 진입',
       badge: cl.spy ? '완료' : '즉시 진입',
       badgeCls: cl.spy ? 'badge-done' : 'badge-wait',
       cls: cl.spy ? 'done' : 'wait',
@@ -1092,8 +1092,8 @@ function renderParams(){
     <div class="param-box">
       <div class="pb-title">포트폴리오</div>
       <div class="pb-row"><span class="pb-key">기본 비중</span><span class="pb-val pos">SPY 40% · QQQ 20% · SGOV 40%</span></div>
-      <div class="pb-row"><span class="pb-key">월 DCA</span><span class="pb-val">SPY $200 · QQQ $100 · SGOV $200</span></div>
-      <div class="pb-row"><span class="pb-key">신호</span><span class="pb-val">SPY 36M 롤링 회귀선 괴리율</span></div>
+      <div class="pb-row"><span class="pb-key">월 DCA (기본)</span><span class="pb-val">SPY $200 · QQQ $100 · SGOV $200</span></div><div class="pb-row"><span class="pb-key">월 DCA (저평가 괴리율&lt;-3%)</span><span class="pb-val pos">SPY $250 · QQQ $125 · SGOV $125</span></div>
+      <div class="pb-row"><span class="pb-key">신호</span><span class="pb-val">SPY 60M 롤링 회귀선 괴리율</span></div>
       <div class="pb-row"><span class="pb-key">1차 진입 (-5%)</span><span class="pb-val">SGOV×12% → 2:1</span></div>
       <div class="pb-row"><span class="pb-key">2차 진입 (-10%)</span><span class="pb-val">SGOV×12% → 2:1</span></div>
       <div class="pb-row"><span class="pb-key">3차 진입 (-15%)</span><span class="pb-val">SGOV 잔액 전부</span></div>
@@ -1102,7 +1102,7 @@ function renderParams(){
       <div class="pb-title">청산 · 리밸</div>
       <div class="pb-row"><span class="pb-key">청산 1차 (+5%)</span><span class="pb-val warn">전술 50% → SGOV</span></div>
       <div class="pb-row"><span class="pb-key">청산 2차 (+10%)</span><span class="pb-val neg">전술 전량 → SAFE</span></div>
-      <div class="pb-row"><span class="pb-key">과열 리밸 (+20%교차)</span><span class="pb-val" style="color:var(--teal)">40:20:40 복원</span></div>
+      <div class="pb-row"><span class="pb-key">과열 리밸 (+15%교차)</span><span class="pb-val" style="color:var(--teal)">40:20:40 복원</span></div>
       <div class="pb-row"><span class="pb-key">하락 리밸1 (평단-20%)</span><span class="pb-val" style="color:var(--purple)">외부현금 25%</span></div>
       <div class="pb-row"><span class="pb-key">하락 리밸2 (평단-40%)</span><span class="pb-val" style="color:var(--purple)">외부현금 25% 추가</span></div>
       <div class="pb-row"><span class="pb-key">수수료</span><span class="pb-val">0.5% 편도</span></div>
