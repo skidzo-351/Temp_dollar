@@ -16,7 +16,7 @@
 리밸:  +15% 교차 → 전술+기본 통합 → 40:20:40 → SAFE
 하락:  평단 -20%/-40% → 외부현금 25%+25%
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-백테스트(1995-2024): $1,341,136 | CAGR 6.6% | MDD 50.2%
+백테스트(1995-2024): $1,339,292 | CAGR 6.5% | MDD 49.9%
 """
 import json, os, urllib.request, time
 from datetime import datetime
@@ -139,7 +139,9 @@ def calc_signals(monthly_closes):
     if N < REG_WIN + 5: return [], []
 
     es = 0; rs = 0; prev_over = False
-    tac_cost = 0.0; tac_sh = 0.0
+    # 전술 포지션: SPY/QQQ 주식수 + 원가 분리 추적 (개선된 백테스트 로직)
+    tac_spy_sh = 0.0; tac_spy_cost = 0.0
+    tac_qqq_sh = 0.0; tac_qqq_cost = 0.0
     trades = []; states = []
     running_peak = monthly_closes[0]
     pos_map = {0: 0.0, 1: 0.35, 2: 0.70, 3: 1.0}
@@ -159,36 +161,48 @@ def calc_signals(monthly_closes):
             continue
 
         divergence = (monthly_closes[i] - predicted) / predicted * 100.0
-        spy_avg  = tac_cost / tac_sh if tac_sh > 1e-9 else 0.0
+        # SPY 평단가: 실제 원가/주식수 기반 (정확한 하락리밸 트리거)
+        spy_avg  = tac_spy_cost / tac_spy_sh if tac_spy_sh > 1e-9 else 0.0
         spy_loss = (monthly_closes[i] - spy_avg) / spy_avg * 100 if spy_avg > 0 else 0.0
         action = None
 
         # ① 완전 리밸: +15% 교차
         if divergence >= REBAL_FULL_THR and not prev_over:
-            tac_cost = 0.0; tac_sh = 0.0
+            tac_spy_sh = 0.0; tac_spy_cost = 0.0
+            tac_qqq_sh = 0.0; tac_qqq_cost = 0.0
             es = 0; rs = 0; action = 'REBAL_FULL'
         prev_over = (divergence >= REBAL_FULL_THR)
 
         # ② 진입
         if action is None and es == 0 and divergence <= ENTRY1_DIV:
-            tac_cost += monthly_closes[i] * ENTRY1_PCT
-            tac_sh   += ENTRY1_PCT; es = 1; action = 'ENTRY1'
+            inv = monthly_closes[i] * ENTRY1_PCT
+            tac_spy_sh += inv * (2/3) / monthly_closes[i]; tac_spy_cost += inv * (2/3)
+            tac_qqq_sh += inv * (1/3) / monthly_closes[i]; tac_qqq_cost += inv * (1/3)
+            es = 1; action = 'ENTRY1'
         elif action is None and es == 1 and divergence <= ENTRY2_DIV:
-            tac_cost += monthly_closes[i] * ENTRY2_PCT
-            tac_sh   += ENTRY2_PCT; es = 2; action = 'ENTRY2'
+            inv = monthly_closes[i] * ENTRY2_PCT
+            tac_spy_sh += inv * (2/3) / monthly_closes[i]; tac_spy_cost += inv * (2/3)
+            tac_qqq_sh += inv * (1/3) / monthly_closes[i]; tac_qqq_cost += inv * (1/3)
+            es = 2; action = 'ENTRY2'
         elif action is None and es == 2 and divergence <= ENTRY3_DIV:
             amt = max(0.0, W_SGOV - ENTRY1_PCT - ENTRY2_PCT)
-            tac_cost += monthly_closes[i] * amt
-            tac_sh   += amt; es = 3; action = 'ENTRY3'
+            inv = monthly_closes[i] * amt
+            tac_spy_sh += inv * (2/3) / monthly_closes[i]; tac_spy_cost += inv * (2/3)
+            tac_qqq_sh += inv * (1/3) / monthly_closes[i]; tac_qqq_cost += inv * (1/3)
+            es = 3; action = 'ENTRY3'
 
         # ③ 하락 리밸 (3차 이후)
         elif action is None and es == 3:
             if rs == 0 and spy_loss <= REBAL_DOWN1_LOSS:
-                tac_cost += monthly_closes[i] * REBAL_DOWN_PCT
-                tac_sh   += REBAL_DOWN_PCT; rs = 1; action = 'REBAL_DOWN1'
+                inv = monthly_closes[i] * REBAL_DOWN_PCT
+                tac_spy_sh += inv * (2/3) / monthly_closes[i]; tac_spy_cost += inv * (2/3)
+                tac_qqq_sh += inv * (1/3) / monthly_closes[i]; tac_qqq_cost += inv * (1/3)
+                rs = 1; action = 'REBAL_DOWN1'
             elif rs == 1 and spy_loss <= REBAL_DOWN2_LOSS:
-                tac_cost += monthly_closes[i] * REBAL_DOWN_PCT
-                tac_sh   += REBAL_DOWN_PCT; rs = 2; action = 'REBAL_DOWN2'
+                inv = monthly_closes[i] * REBAL_DOWN_PCT
+                tac_spy_sh += inv * (2/3) / monthly_closes[i]; tac_spy_cost += inv * (2/3)
+                tac_qqq_sh += inv * (1/3) / monthly_closes[i]; tac_qqq_cost += inv * (1/3)
+                rs = 2; action = 'REBAL_DOWN2'
 
         cur_pos = pos_map.get(es, 0.0)
         if action:
@@ -361,7 +375,7 @@ def main():
                            'action':'전술+기본통합→40:20:40→SAFE'},
             'rebal_down': {'t1':REBAL_DOWN1_LOSS,'t2':REBAL_DOWN2_LOSS,
                            'pct':f'{REBAL_DOWN_PCT*100:.0f}%'},
-            'backtest': {'final':1341136,'cagr':6.6,'mdd':50.2,'trades':26},
+            'backtest': {'final':1339292,'cagr':6.5,'mdd':49.9,'trades':24},
         },
         'assets': {},
     }
