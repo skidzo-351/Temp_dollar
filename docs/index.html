@@ -183,6 +183,7 @@ tr.sim-row td{opacity:.3}
     <span class="ba">진입 -5/-10/-15% | 청산없음 → 통합리밸</span>
     <span class="bb">60M 롤링 회귀선</span>
     <span class="bp">과열 리밸 +15% | 하락 리밸 평단-20%/-40%</span>
+    <span class="bg" style="opacity:.7">백테스트 $1,339,292 | CAGR 6.5% | MDD 49.9%</span>
   </div>
 </header>
 
@@ -459,18 +460,18 @@ const CV = {
 };
 const TAG_LABEL = {
   ENTRY1:'1차 진입', ENTRY2:'2차 진입', ENTRY3:'3차 진입',
-  EXIT:'청산1(+5%)', EXIT2:'청산2(+10%)',
-  REBAL_HOT:'과열리밸⚖️', REBAL_DOWN1:'하락리밸1💸', REBAL_DOWN2:'하락리밸2💸'
+  REBAL_FULL:'통합리밸⚖️',
+  REBAL_DOWN1:'하락리밸1💸', REBAL_DOWN2:'하락리밸2💸'
 };
 const TAG_COLOR = {
   ENTRY1:'color:var(--cyan)', ENTRY2:'color:var(--blue)', ENTRY3:'color:var(--green)',
-  EXIT:'color:var(--amber)', EXIT2:'color:var(--red)',
-  REBAL_HOT:'color:var(--teal)', REBAL_DOWN1:'color:var(--purple)', REBAL_DOWN2:'color:var(--purple)'
+  REBAL_FULL:'color:var(--teal)',
+  REBAL_DOWN1:'color:var(--purple)', REBAL_DOWN2:'color:var(--purple)'
 };
 const SIG_MSG = {
   WAITING:'관망 중 — SGOV 보유', HOLDING:'포지션 보유 중',
   ENTRY1_READY:'⚡ 1차 진입 가능', ENTRY2_READY:'⚡ 2차 진입 가능', ENTRY3_READY:'⚡ 3차 진입 가능',
-  EXIT_READY:'💰 청산 신호', REBAL_HOT_READY:'⚖️ 과열 리밸 가능 (+15% 교차)',
+  REBAL_FULL_READY:'⚖️ 완전 리밸 — 전술+기본 통합 → 40:20:40 → SAFE',
 };
 const divColor = d => d==null?CV.dim:d<-10?'#e05b4b':d<-3?'#e8a33a':d>15?'#26bfad':d>5?'#e8a33a':'#3dbe7a';
 const fmt  = v => (v==null||isNaN(v))?'—':'$'+Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
@@ -820,8 +821,7 @@ function calcRealPosition(asset){
     if     (t.type==='ENTRY1')    es=1;
     else if(t.type==='ENTRY2')    es=2;
     else if(t.type==='ENTRY3')    es=3;
-    else if(t.type==='EXIT2')     es=0;
-    else if(t.type==='REBAL_HOT') es=0;
+    else if(t.type==='REBAL_FULL') es=0;
   });
   return {es, trades};
 }
@@ -839,15 +839,15 @@ function renderPositionCard(){
     else                       nextAction='신호 없음';
   } else if(es===1){
     if(div!=null&&div<=-10)    nextAction=`⚡ <b style="color:var(--blue)">2차 진입 가능</b> — SGOV 순자산×12% 추가`;
-    else if(div!=null&&div>=5) nextAction=`💰 <b style="color:var(--amber)">청산1 가능</b> — 전술 포지션 50% 매도`;
-    else                       nextAction=`보유 중 (2차 진입: -10% | 청산1: +5%)`;
+    else if(div!=null&&div>=15) nextAction=`⚖️ <b style="color:var(--teal)">통합 리밸 가능</b> — 전술+기본 통합 → 40:20:40`;
+    else                        nextAction=`보유 중 (2차 진입: -10% | 통합리밸: +15%)`;
   } else if(es===2){
     if(div!=null&&div<=-15)    nextAction=`⚡ <b style="color:var(--green)">3차 진입 가능</b> — SGOV 잔액 전부`;
-    else if(div!=null&&div>=5) nextAction=`💰 <b style="color:var(--amber)">청산1 가능</b> — 전술 포지션 50% 매도`;
-    else                       nextAction=`보유 중 (3차 진입: -15% | 청산1: +5%)`;
+    else if(div!=null&&div>=15) nextAction=`⚖️ <b style="color:var(--teal)">통합 리밸 가능</b> — 전술+기본 통합 → 40:20:40`;
+    else                        nextAction=`보유 중 (3차 진입: -15% | 통합리밸: +15%)`;
   } else if(es===3){
-    if(div!=null&&div>=5)      nextAction=`💰 <b style="color:var(--amber)">청산1 가능</b> — 전술 포지션 50% 매도`;
-    else                       nextAction=`보유 중 (청산1: +5% | 하락리밸: 평단-20%)`;
+    if(div!=null&&div>=15)      nextAction=`⚖️ <b style="color:var(--teal)">통합 리밸 가능</b> — 전술+기본 통합 → 40:20:40`;
+    else                        nextAction=`보유 중 (통합리밸: +15% | 하락리밸: 평단-20%)`;
   }
 
   const sc=es===0?CV.dim:'#38c4d8';
@@ -1012,9 +1012,7 @@ function drawPriceChart(){
     if(t.type.startsWith('ENTRY')){
       ctx.fillStyle=CV.entry;ctx.beginPath();
       ctx.moveTo(x,y-6);ctx.lineTo(x-3,y+1);ctx.lineTo(x+3,y+1);ctx.closePath();ctx.fill();
-    }else if(t.type.startsWith('EXIT')){
-      ctx.fillStyle=CV.exit;ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fill();
-    }else if(t.type==='REBAL_HOT'){
+    }else if(t.type==='REBAL_FULL'){
       ctx.fillStyle=CV.rebal_hot;ctx.strokeStyle='#fff';ctx.lineWidth=1;
       ctx.beginPath();ctx.rect(x-4,y-4,8,8);ctx.fill();ctx.stroke();
     }else{
@@ -1028,7 +1026,7 @@ function drawPriceChart(){
     `<span><span class="lw" style="background:${CV.pred};opacity:.7"></span>60M 회귀선</span>`,
     startDate?`<span><span class="lw" style="background:${CV.start_line}"></span>투자시작</span>`:'',
     `<span><span class="lt" style="border-bottom-color:${CV.entry}"></span>진입</span>`,
-    `<span><span class="ld" style="background:${CV.exit}"></span>청산</span>`,
+    `<span><span class="ld" style="background:${CV.rebal_hot}"></span>통합리밸</span>`,
   ].filter(Boolean).join('');
   document.getElementById('cn').textContent=`최근 ${SHOW}개월`;
 }
@@ -1101,9 +1099,8 @@ function renderParams(){
     </div>
     <div class="param-box">
       <div class="pb-title">청산 · 리밸</div>
-      <div class="pb-row"><span class="pb-key">청산 1차 (+5%)</span><span class="pb-val warn">전술 50% → SGOV</span></div>
-      <div class="pb-row"><span class="pb-key">청산 2차 (+10%)</span><span class="pb-val neg">전술 전량 → SAFE</span></div>
-      <div class="pb-row"><span class="pb-key">과열 리밸 (+15%교차)</span><span class="pb-val" style="color:var(--teal)">40:20:40 복원</span></div>
+      <div class="pb-row"><span class="pb-key">분할청산</span><span class="pb-val" style="color:var(--dim)">없음 — 통합리밸로 대체</span></div>
+      <div class="pb-row"><span class="pb-key">완전 리밸 (+15% 교차)</span><span class="pb-val" style="color:var(--teal)">전술+기본 통합 → 40:20:40 → SAFE</span></div>
       <div class="pb-row"><span class="pb-key">하락 리밸1 (평단-20%)</span><span class="pb-val" style="color:var(--purple)">외부현금 25%</span></div>
       <div class="pb-row"><span class="pb-key">하락 리밸2 (평단-40%)</span><span class="pb-val" style="color:var(--purple)">외부현금 25% 추가</span></div>
       <div class="pb-row"><span class="pb-key">수수료</span><span class="pb-val">0.5% 편도</span></div>
