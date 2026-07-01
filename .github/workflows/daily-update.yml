@@ -17,7 +17,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"                 # deploy-pages 공식 권장 그룹명
+  group: "pages-${{ github.ref }}"   # ref별로 그룹 분리 → 동시 실행 충돌 방지
   cancel-in-progress: true
 
 jobs:
@@ -70,7 +70,10 @@ jobs:
         with:
           path: 'docs'
           retention-days: 1
+          name: github-pages-${{ github.run_id }}   # run마다 유일한 이름 부여 (중복 아티팩트 방지)
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_id }}   # 업로드와 동일 이름 지정
