@@ -183,7 +183,7 @@ tr.sim-row td{opacity:.3}
     <span class="ba">진입 -5/-10/-15% | 청산없음 → 통합리밸</span>
     <span class="bb">400일 SMA (일별)</span>
     <span class="bp">과열 리밸 +15% | 하락 리밸 평단-20%/-40%</span>
-    <span class="bg" style="opacity:.7">백테스트 $1,858,102 | CAGR 10.4% | MDD 54.4% (22년)</span>
+    <span class="bg" style="opacity:.7">백테스트 $2,620,350 | CAGR 12.1% | MDD 55.3% (22년)</span>
   </div>
 </header>
 
@@ -889,14 +889,15 @@ function renderSignal(){
   const c=a.current, div=c.divergence, sig=c.signal||'WAITING';
   const sigColorMap={WAITING:CV.dim,HOLDING:'#e8a33a',
     ENTRY1_READY:'#38c4d8',ENTRY2_READY:'#4a8fe8',ENTRY3_READY:'#3dbe7a',
-    EXIT_READY:'#e05b4b',REBAL_HOT_READY:'#26bfad'};
+    EXIT_READY:'#e05b4b',REBAL_HOT_READY:'#26bfad',REBAL_FULL_READY:'#26bfad'};
   const col=sigColorMap[sig]||CV.dim;
+  const rthr=c.rebal_thr;
   document.getElementById('signalCard').innerHTML=`
     <div class="signal-card" style="border-color:${col}">
       <div class="sc-div-block">
         <div class="sc-div-num" style="color:${divColor(div)}">${div!=null?fp(div,true):'—'}</div>
-        <div class="sc-div-label">괴리율 (월말기준)</div>
-        ${c.div_realtime!=null?`<div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:2px">실시간: ${fp(c.div_realtime,true)}</div>`:''}
+        <div class="sc-div-label">괴리율 (400일 SMA, 일별)</div>
+        ${rthr!=null?`<div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:2px">현재 리밸 트리거: +${rthr.toFixed(1)}%</div>`:''}
       </div>
       <div class="sc-right">
         <div class="sc-item"><dt>신호</dt><dd style="color:${col}">${SIG_MSG[sig]||sig}</dd></div>
@@ -1100,7 +1101,8 @@ function renderParams(){
     <div class="param-box">
       <div class="pb-title">청산 · 리밸</div>
       <div class="pb-row"><span class="pb-key">분할청산</span><span class="pb-val" style="color:var(--dim)">없음 — 통합리밸로 대체</span></div>
-      <div class="pb-row"><span class="pb-key">완전 리밸 (+15% 교차)</span><span class="pb-val" style="color:var(--teal)">전술+기본 통합 → 40:20:40 → SAFE</span></div>
+      <div class="pb-row"><span class="pb-key">완전 리밸 (동적 18~25%)</span><span class="pb-val" style="color:var(--teal)">전술+기본 통합 → 40:20:40 → SAFE</span></div>
+      <div class="pb-row"><span class="pb-key">리밸 트리거 산정</span><span class="pb-val" style="color:var(--dim)">SMA 60일 변화율 역방향 연동</span></div>
       <div class="pb-row"><span class="pb-key">리밸 쿨다운</span><span class="pb-val" style="color:var(--dim)">재발동까지 최소 60거래일 (노이즈 방지)</span></div>
       <div class="pb-row"><span class="pb-key">하락 리밸1 (평단-20%)</span><span class="pb-val" style="color:var(--purple)">외부현금 25%</span></div>
       <div class="pb-row"><span class="pb-key">하락 리밸2 (평단-40%)</span><span class="pb-val" style="color:var(--purple)">외부현금 25% 추가</span></div>
