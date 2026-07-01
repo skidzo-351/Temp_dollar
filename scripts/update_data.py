@@ -33,8 +33,16 @@ ENTRY3_DIV  = -15.0
 ENTRY1_PCT  = 0.12
 ENTRY2_PCT  = 0.12
 
-REBAL_FULL_THR  = +15.0
 REBAL_COOLDOWN  = 60      # 거래일. 리밸 후 재발동까지 최소 대기 (노이즈 방지)
+
+# 동적 리밸 트리거 — SMA 60일 변화율 역방향 연동
+#   변화율이 클수록(급등 직후) → 트리거 낮춤(빨리 차익실현)
+#   변화율이 작을수록(완만한 상승) → 트리거 높임(오래 보유)
+#   공식: thr = HI - (mom60/NORM) * (HI-LO), 범위 [LO, HI]로 클리핑
+REBAL_MOM_WIN   = 60       # 변화율 측정 기간(거래일)
+REBAL_THR_LO    = 18.0     # 트리거 하한
+REBAL_THR_HI    = 25.0     # 트리거 상한
+REBAL_NORM      = 10.0     # 정규화 상수 (변화율 10%를 만점 기준으로)
 DCA_DIV_THR     = -3.0
 DCA_BASE = {'spy': 200, 'qqq': 100, 'sgov': 200}
 DCA_BULL = {'spy': 250, 'qqq': 125, 'sgov': 125}
@@ -115,13 +123,43 @@ def calc_sma(closes, i, win):
     if i < win: return None
     return sum(closes[i-win:i]) / win
 
+def calc_sma_series(closes, win):
+    """전체 구간 SMA를 미리 계산 (변화율 조회 성능용)"""
+    N = len(closes)
+    series = [None] * N
+    for i in range(win, N):
+        series[i] = sum(closes[i-win:i]) / win
+    return series
+
+def sma_change_rate(sma_series, i, win):
+    """SMA의 win거래일간 변화율(%). 데이터 부족 시 None"""
+    j = i - win
+    if j < 0 or sma_series[i] is None or sma_series[j] is None or sma_series[j] == 0:
+        return None
+    return (sma_series[i] - sma_series[j]) / sma_series[j] * 100.0
+
+def dynamic_rebal_thr(mom):
+    """
+    동적 리밸 트리거: SMA 60일 변화율 역방향 연동
+      변화율 클수록(급등 직후) → 트리거 낮춤(빨리 차익실현)
+      변화율 작을수록(완만한 상승) → 트리거 높임(오래 보유)
+    mom이 None(데이터 부족)이면 중간값 반환
+    """
+    if mom is None:
+        return (REBAL_THR_LO + REBAL_THR_HI) / 2
+    t = REBAL_THR_HI - (mom / REBAL_NORM) * (REBAL_THR_HI - REBAL_THR_LO)
+    return max(REBAL_THR_LO, min(REBAL_THR_HI, t))
+
 def calc_signals(dates, closes):
     """
     일별 종가 배열에 대해 400일 SMA 괴리율 기반 신호 계산.
+    리밸 트리거는 SMA 60일 변화율에 연동되어 18~25% 범위에서 동적으로 결정됨.
     반환: trades(거래 리스트), states(일별 상태 리스트, SMA 계산 가능 구간부터)
     """
     N = len(closes)
-    if N < SMA_WIN + 30: return [], []
+    if N < SMA_WIN + REBAL_MOM_WIN + 30: return [], []
+
+    sma_series = calc_sma_series(closes, SMA_WIN)
 
     # 월별 DCA 발생일(각 달의 첫 거래일) 인덱스
     month_first = {}
@@ -143,7 +181,7 @@ def calc_signals(dates, closes):
         if es == 0 and closes[i] > running_peak:
             running_peak = closes[i]
 
-        s = calc_sma(closes, i, SMA_WIN)
+        s = sma_series[i]
         if not s:
             states.append({'i': i, 'close': closes[i], 'predicted': None,
                            'divergence': None, 'position': pos_map.get(es, 0.0),
@@ -151,18 +189,21 @@ def calc_signals(dates, closes):
             continue
 
         divergence = (closes[i] - s) / s * 100.0
+        mom60 = sma_change_rate(sma_series, i, REBAL_MOM_WIN)
+        rebal_thr = dynamic_rebal_thr(mom60)
+
         spy_avg  = tac_spy_cost / tac_spy_sh if tac_spy_sh > 1e-9 else 0.0
         spy_loss = (closes[i] - spy_avg) / spy_avg * 100 if spy_avg > 0 else 0.0
         action = None
 
-        # ① 완전 리밸: +15% 교차 (쿨다운 적용 — SMA 노이즈로 인한 과매매 방지)
+        # ① 완전 리밸: 동적 트리거(18~25%) 교차 (쿨다운 적용 — 과매매 방지)
         can_rebal = (i - last_rebal_i) >= REBAL_COOLDOWN
-        if divergence >= REBAL_FULL_THR and not prev_over and can_rebal:
+        if divergence >= rebal_thr and not prev_over and can_rebal:
             tac_spy_sh = 0.0; tac_spy_cost = 0.0
             tac_qqq_sh = 0.0; tac_qqq_cost = 0.0
             es = 0; rs = 0; action = 'REBAL_FULL'
             last_rebal_i = i
-        prev_over = (divergence >= REBAL_FULL_THR)
+        prev_over = (divergence >= rebal_thr)
 
         # ② 진입
         if action is None and es == 0 and divergence <= ENTRY1_DIV:
@@ -203,10 +244,13 @@ def calc_signals(dates, closes):
                            'position_after': cur_pos,
                            'avg_entry': round(spy_avg, 2) if spy_avg > 0 else None,
                            'spy_loss': round(spy_loss, 2),
+                           'rebal_thr': round(rebal_thr, 2),
+                           'sma_mom60': round(mom60, 2) if mom60 is not None else None,
                            'is_dca_day': i in dca_days})
         states.append({'i': i, 'close': closes[i], 'predicted': round(s, 4),
                        'divergence': round(divergence, 4), 'position': cur_pos,
-                       'peak': running_peak, 'is_dca_day': i in dca_days})
+                       'peak': running_peak, 'rebal_thr': round(rebal_thr, 2),
+                       'is_dca_day': i in dca_days})
 
     return trades, states
 
@@ -214,8 +258,9 @@ def calc_signals(dates, closes):
 def get_signal(states):
     if not states: return 'NO_SIGNAL'
     last = states[-1]; pos = last.get('position', 0.0); div = last.get('divergence')
+    rebal_thr = last.get('rebal_thr', REBAL_THR_HI)
     if div is None: return 'NO_SIGNAL'
-    if pos > 0.0 and div >= REBAL_FULL_THR: return 'REBAL_FULL_READY'
+    if pos > 0.0 and div >= rebal_thr:      return 'REBAL_FULL_READY'
     if pos == 0.0 and div <= ENTRY1_DIV:    return 'ENTRY1_READY'
     if pos == 0.35 and div <= ENTRY2_DIV:   return 'ENTRY2_READY'
     if pos == 0.70 and div <= ENTRY3_DIV:   return 'ENTRY3_READY'
@@ -252,10 +297,11 @@ def build(ticker, cfg):
     sig = get_signal(states)
 
     last = states[-1] if states else {}
-    pos  = last.get('position', 0.0)
-    div  = last.get('divergence')
-    pred = last.get('predicted')
-    peak = last.get('peak')
+    pos       = last.get('position', 0.0)
+    div       = last.get('divergence')
+    pred      = last.get('predicted')
+    peak      = last.get('peak')
+    rebal_thr = last.get('rebal_thr')
 
     latest_close = closes[-1]
     latest_date  = dates[-1]
@@ -265,12 +311,14 @@ def build(ticker, cfg):
     s_pred = [None]         * pad + [s['predicted']  for s in states]
     s_pos  = [0.0]          * pad + [s['position']   for s in states]
     s_peak = [closes[0]]    * pad + [s['peak']       for s in states]
+    s_rthr = [None]         * pad + [s['rebal_thr']  for s in states]
 
     n_entry = sum(1 for t in trades if t['type'].startswith('ENTRY'))
     n_rebal = sum(1 for t in trades if 'REBAL' in t['type'])
 
     print(f"  ✓ 신호={sig} | 400일SMA괴리율={div}% | 예측가(SMA)={pred}")
-    print(f"    현재가={latest_close} ({latest_date}) | 진입{n_entry}회 | 리밸{n_rebal}회")
+    print(f"    동적리밸트리거={rebal_thr}% | 현재가={latest_close} ({latest_date})")
+    print(f"    진입{n_entry}회 | 리밸{n_rebal}회")
 
     return {
         'ticker': ticker, 'name': cfg['name'],
@@ -282,6 +330,7 @@ def build(ticker, cfg):
         'predicted':  s_pred,
         'position':   s_pos,
         'peak':       s_peak,
+        'rebal_thr':  s_rthr,   # 동적 리밸 트리거값 시리즈 (18~25%)
 
         'trades':        trades,
         'latest_trades': trades[-15:],
@@ -294,6 +343,7 @@ def build(ticker, cfg):
             'close':        latest_close,
             'predicted':    pred,          # 400일 SMA 값
             'peak':         peak,
+            'rebal_thr':    rebal_thr,     # 현재 시점 동적 리밸 트리거(18~25%)
             'date':         latest_date,
         },
 
@@ -304,7 +354,8 @@ def build(ticker, cfg):
             'sma_win':       SMA_WIN,
             'entry_div':     [ENTRY1_DIV, ENTRY2_DIV, ENTRY3_DIV],
             'entry_pct':     [ENTRY1_PCT*100, ENTRY2_PCT*100, '잔액전부(≈16%)'],
-            'rebal_full':    REBAL_FULL_THR,
+            'rebal_full':    {'mode':'dynamic', 'lo':REBAL_THR_LO, 'hi':REBAL_THR_HI,
+                              'mom_win':REBAL_MOM_WIN, 'norm':REBAL_NORM},
             'rebal_cooldown':f'{REBAL_COOLDOWN}거래일',
             'rebal_down':    [REBAL_DOWN1_LOSS, REBAL_DOWN2_LOSS, REBAL_DOWN_PCT*100],
             'dca_base':      DCA_BASE,
@@ -318,15 +369,17 @@ def main():
     print("=" * 65)
     print("최종 전략 v5 — 400일 SMA (일별) | 신호=SPY 400SMA 괴리율")
     print(f"실행: {datetime.utcnow().isoformat()} UTC")
-    print(f"SMA={SMA_WIN}거래일 | 리밸=+{REBAL_FULL_THR}%(쿨다운{REBAL_COOLDOWN}거래일) | DCA동적")
+    print(f"SMA={SMA_WIN}거래일 | 리밸=동적{REBAL_THR_LO}~{REBAL_THR_HI}%"
+          f"(SMA{REBAL_MOM_WIN}일변화율연동,쿨다운{REBAL_COOLDOWN}거래일) | DCA동적")
     print("=" * 65)
 
     output = {
         'generated_at': datetime.utcnow().isoformat() + 'Z',
         'strategy': {
-            'name':    'Final v5 — SPY40+QQQ20+SGOV40 | 400-Day SMA (Daily)',
-            'version': 'v5',
-            'note':    '일별 데이터 그대로 사용, 리샘플링 없음. 400일 SMA 괴리율 기준',
+            'name':    'Final v6 — SPY40+QQQ20+SGOV40 | 400-Day SMA + Dynamic Rebal (Daily)',
+            'version': 'v6',
+            'note':    '일별 데이터 그대로 사용. 400일 SMA 괴리율 기준, '
+                       '리밸 트리거는 SMA 60일 변화율에 역방향 연동(18~25%)',
             'portfolio': {'spy': W_SPY, 'qqq': W_QQQ, 'sgov': W_SGOV},
             'dca': {'base': DCA_BASE, 'bull': DCA_BULL, 'div_thr': DCA_DIV_THR},
             'entry': [
@@ -334,12 +387,19 @@ def main():
                 {'level':2,'div':ENTRY2_DIV,'pct':f'{ENTRY2_PCT*100:.0f}%'},
                 {'level':3,'div':ENTRY3_DIV,'pct':'SGOV잔액전부(≈16%)'},
             ],
-            'rebal_full': {'trigger':f'+{REBAL_FULL_THR}% 교차 (쿨다운{REBAL_COOLDOWN}거래일)',
-                           'action':'전술+기본통합→40:20:40→SAFE'},
+            'rebal_full': {
+                'mode': 'dynamic',
+                'range': f'{REBAL_THR_LO}%~{REBAL_THR_HI}%',
+                'formula': f'thr = {REBAL_THR_HI} - (SMA{REBAL_MOM_WIN}일변화율/{REBAL_NORM})×({REBAL_THR_HI}-{REBAL_THR_LO}), 범위클리핑',
+                'logic': '변화율 클수록(급등직후)→트리거낮춤(빨리실현) / 변화율작을수록(완만한상승)→트리거높임(오래보유)',
+                'cooldown': f'{REBAL_COOLDOWN}거래일',
+                'action': '전술+기본통합→40:20:40→SAFE',
+            },
             'rebal_down': {'t1':REBAL_DOWN1_LOSS,'t2':REBAL_DOWN2_LOSS,
                            'pct':f'{REBAL_DOWN_PCT*100:.0f}%'},
-            'backtest': {'final':1858102,'cagr':10.4,'mdd':54.4,'trades':46,
-                        'period':'1994-08~2026-07 (22년)'},
+            'backtest': {'final':2620350,'cagr':12.13,'mdd':55.3,'trades':17,
+                        'period':'1994-08~2026-07 (22년)',
+                        'note':'고정+20% 대비 CAGR+1.1%p, MDD 거의동일, 리밸-3회'},
         },
         'assets': {},
     }
