@@ -250,6 +250,9 @@ def calc_signals(dates, closes):
         states.append({'i': i, 'close': closes[i], 'predicted': round(s, 4),
                        'divergence': round(divergence, 4), 'position': cur_pos,
                        'peak': running_peak, 'rebal_thr': round(rebal_thr, 2),
+                       'es': es, 'rs': rs,
+                       'spy_avg': round(spy_avg, 2) if spy_avg > 0 else None,
+                       'spy_loss': round(spy_loss, 2) if spy_avg > 0 else None,
                        'is_dca_day': i in dca_days})
 
     return trades, states
@@ -257,24 +260,33 @@ def calc_signals(dates, closes):
 # ── 현재 신호 판단 ────────────────────────────────────────────
 def get_signal(states):
     if not states: return 'NO_SIGNAL'
-    last = states[-1]; pos = last.get('position', 0.0); div = last.get('divergence')
+    last = states[-1]
+    pos = last.get('position', 0.0); div = last.get('divergence')
+    es = last.get('es', 0); rs = last.get('rs', 0)
+    spy_loss = last.get('spy_loss')
     rebal_thr = last.get('rebal_thr', REBAL_THR_HI)
     if div is None: return 'NO_SIGNAL'
     if pos > 0.0 and div >= rebal_thr:      return 'REBAL_FULL_READY'
     if pos == 0.0 and div <= ENTRY1_DIV:    return 'ENTRY1_READY'
     if pos == 0.35 and div <= ENTRY2_DIV:   return 'ENTRY2_READY'
     if pos == 0.70 and div <= ENTRY3_DIV:   return 'ENTRY3_READY'
+    if es == 3 and rs == 0 and spy_loss is not None and spy_loss <= REBAL_DOWN1_LOSS:
+        return 'REBAL_DOWN1_READY'
+    if es == 3 and rs == 1 and spy_loss is not None and spy_loss <= REBAL_DOWN2_LOSS:
+        return 'REBAL_DOWN2_READY'
     if pos > 0.0:                            return 'HOLDING'
     return 'WAITING'
 
 SIG_MSG = {
-    'WAITING':          '관망 중 — SGOV 보유',
-    'ENTRY1_READY':     '⚡ 1차 진입 — SGOV 순자산×12% → SPY:QQQ=2:1',
-    'ENTRY2_READY':     '⚡ 2차 진입 — SGOV 순자산×12% → SPY:QQQ=2:1',
-    'ENTRY3_READY':     '⚡ 3차 진입 — SGOV 잔액 전부 → SPY:QQQ=2:1',
-    'HOLDING':          '전술 포지션 보유 중',
-    'REBAL_FULL_READY': '⚖️ 완전 리밸 — 전술+기본 통합 → 40:20:40 → SAFE',
-    'NO_SIGNAL':        '신호 없음 (데이터 부족)',
+    'WAITING':           '관망 중 — SGOV 보유',
+    'ENTRY1_READY':      '⚡ 1차 진입 — SGOV 순자산×12% → SPY:QQQ=2:1',
+    'ENTRY2_READY':      '⚡ 2차 진입 — SGOV 순자산×12% → SPY:QQQ=2:1',
+    'ENTRY3_READY':      '⚡ 3차 진입 — SGOV 잔액 전부 → SPY:QQQ=2:1',
+    'HOLDING':           '전술 포지션 보유 중',
+    'REBAL_FULL_READY':  '⚖️ 완전 리밸 — 전술+기본 통합 → 40:20:40 → SAFE',
+    'REBAL_DOWN1_READY': '💸 하락 리밸 1차 — 외부현금 순자산×25% → SPY:QQQ=2:1',
+    'REBAL_DOWN2_READY': '💸 하락 리밸 2차 — 외부현금 순자산×25% → SPY:QQQ=2:1',
+    'NO_SIGNAL':         '신호 없음 (데이터 부족)',
 }
 
 # ── 자산별 빌드 ───────────────────────────────────────────────
@@ -302,6 +314,10 @@ def build(ticker, cfg):
     pred      = last.get('predicted')
     peak      = last.get('peak')
     rebal_thr = last.get('rebal_thr')
+    es        = last.get('es', 0)
+    rs        = last.get('rs', 0)
+    spy_avg   = last.get('spy_avg')
+    spy_loss  = last.get('spy_loss')
 
     latest_close = closes[-1]
     latest_date  = dates[-1]
@@ -318,7 +334,7 @@ def build(ticker, cfg):
 
     print(f"  ✓ 신호={sig} | 400일SMA괴리율={div}% | 예측가(SMA)={pred}")
     print(f"    동적리밸트리거={rebal_thr}% | 현재가={latest_close} ({latest_date})")
-    print(f"    진입{n_entry}회 | 리밸{n_rebal}회")
+    print(f"    진입{n_entry}회 | 리밸{n_rebal}회 | es={es} rs={rs} spy_loss={spy_loss}")
 
     return {
         'ticker': ticker, 'name': cfg['name'],
@@ -344,6 +360,10 @@ def build(ticker, cfg):
             'predicted':    pred,          # 400일 SMA 값
             'peak':         peak,
             'rebal_thr':    rebal_thr,     # 현재 시점 동적 리밸 트리거(18~25%)
+            'es':           es,            # 진입 단계 (0~3)
+            'rs':           rs,            # 하락리밸 단계 (0~2)
+            'spy_avg':      spy_avg,       # 전술 포지션 SPY 평단가
+            'spy_loss':     spy_loss,      # 평단 대비 SPY 손익률(%)
             'date':         latest_date,
         },
 
