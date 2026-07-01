@@ -130,6 +130,17 @@ main{max-width:1080px;margin:0 auto;padding:14px 20px 80px}
 .sc-item dd{font-family:var(--mono);font-size:12px;font-weight:700}
 @media(max-width:540px){.signal-card{grid-template-columns:1fr}.sc-right{grid-template-columns:repeat(2,1fr)}}
 
+/* ── 실행 가이드 ── */
+.exec-card{border-radius:6px;padding:14px 16px;margin-bottom:12px;border:1.5px solid;background:rgba(0,0,0,.15)}
+.exec-title{font-family:var(--mono);font-size:11px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.exec-row{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid rgba(255,255,255,.06)}
+.exec-row:first-of-type{border-top:none}
+.exec-ticker{font-family:var(--mono);font-size:12px;font-weight:700}
+.exec-desc{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.exec-qty{font-family:var(--mono);font-size:13px;font-weight:700;text-align:right;white-space:nowrap}
+.exec-note{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);line-height:1.6}
+.exec-warn{font-family:var(--mono);font-size:10px;color:var(--amber);margin-top:6px}
+
 /* ── 탭 ── */
 .tabs{display:flex;gap:6px;margin-bottom:12px}
 .tab{padding:6px 14px;background:var(--s1);border:1px solid var(--b);color:var(--dim);cursor:pointer;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;border-radius:3px}
@@ -199,6 +210,9 @@ tr.sim-row td{opacity:.3}
 
     <!-- 현재 신호 카드 -->
     <div id="signalCard"></div>
+
+    <!-- 실행 가이드 (트리거 활성화 시에만 표시) -->
+    <div id="execGuideCard"></div>
 
     <!-- 차트 -->
     <div class="panel">
@@ -459,6 +473,7 @@ const SIG_MSG = {
   WAITING:'관망 중 — SGOV 보유', HOLDING:'포지션 보유 중',
   ENTRY1_READY:'⚡ 1차 진입 가능', ENTRY2_READY:'⚡ 2차 진입 가능', ENTRY3_READY:'⚡ 3차 진입 가능',
   REBAL_FULL_READY:'⚖️ 완전 리밸 — 전술+기본 통합 → 40:20:40 → SAFE',
+  REBAL_DOWN1_READY:'💸 하락 리밸 1차 가능', REBAL_DOWN2_READY:'💸 하락 리밸 2차 가능',
 };
 const divColor = d => d==null?CV.dim:d<-10?'#e05b4b':d<-3?'#e8a33a':d>18?'#26bfad':d>5?'#e8a33a':'#3dbe7a';
 const fmt  = v => (v==null||isNaN(v))?'—':'$'+Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
@@ -729,6 +744,9 @@ function calcPort(){
 
   // 원화 환산 업데이트
   updateKRW();
+
+  // 실행 가이드 갱신 (수량 입력값 반영)
+  if(typeof renderExecGuide==='function') renderExecGuide();
 }
 
 /* ── 실제 포지션 계산 ── */
@@ -811,7 +829,8 @@ function renderSignal(){
   const c=a.current, div=c.divergence, sig=c.signal||'WAITING';
   const sigColorMap={WAITING:CV.dim,HOLDING:'#e8a33a',
     ENTRY1_READY:'#38c4d8',ENTRY2_READY:'#4a8fe8',ENTRY3_READY:'#3dbe7a',
-    REBAL_FULL_READY:'#26bfad'};
+    REBAL_FULL_READY:'#26bfad',
+    REBAL_DOWN1_READY:'#a87ef5',REBAL_DOWN2_READY:'#a87ef5'};
   const col=sigColorMap[sig]||CV.dim;
   const rthr=c.rebal_thr;
   document.getElementById('signalCard').innerHTML=`
@@ -829,6 +848,97 @@ function renderSignal(){
         <div class="sc-item"><dt>기준일</dt><dd>${c.date||'—'}</dd></div>
         <div class="sc-item"><dt>백테스트</dt><dd style="color:var(--dim)">${pLbl(c.position||0)}</dd></div>
       </div>
+    </div>`;
+}
+
+/* ── 실행 가이드 (트리거 활성화 시 매매 주수 계산) ── */
+function getCurrentHoldings(){
+  // 포트폴리오 현황 입력값 기반 — 시작일이 설정돼 실제 포지션 추적 중이면 그 값을,
+  // 아니면 수동 입력값을 그대로 사용
+  return {
+    spy:  parseFloat(document.getElementById('inSPY')?.value)  || 0,
+    qqq:  parseFloat(document.getElementById('inQQQ')?.value)  || 0,
+    sgov: parseFloat(document.getElementById('inSGOV')?.value) || 0,
+    cash: parseFloat(document.getElementById('inCASH')?.value) || 0,
+  };
+}
+
+function renderExecGuide(){
+  const a=getAsset(); if(!a){ document.getElementById('execGuideCard').innerHTML=''; return; }
+  const c=a.current, sig=c.signal;
+  const spyPrice  = D?.assets?.SPY?.current?.close  || 0;
+  const qqqPrice  = D?.assets?.QQQ?.current?.close  || 0;
+  const sgovPrice = 100.62;
+
+  const h = getCurrentHoldings();
+  const vSPY=h.spy*spyPrice, vQQQ=h.qqq*qqqPrice, vSGOV=h.sgov*sgovPrice;
+  const netTotal = vSPY+vQQQ+vSGOV+h.cash;
+
+  const holdingsMissing = (vSPY+vQQQ+vSGOV+h.cash) <= 0;
+
+  let title='', col=CV.dim, rows=[], note='', warn='';
+
+  if(sig==='ENTRY1_READY'||sig==='ENTRY2_READY'||sig==='ENTRY3_READY'){
+    const pct = sig==='ENTRY3_READY' ? null : 0.12; // 3차는 SGOV 잔액 전부
+    const invest = sig==='ENTRY3_READY' ? vSGOV : Math.min(netTotal*pct, vSGOV);
+    const spyBuyVal = invest*(2/3), qqqBuyVal = invest*(1/3);
+    const sellSgovSh = spyPrice&&qqqPrice ? invest/sgovPrice : 0;
+    const buySpySh = spyPrice ? spyBuyVal/spyPrice : 0;
+    const buyQqqSh = qqqPrice ? qqqBuyVal/qqqPrice : 0;
+    const stepLbl = sig==='ENTRY1_READY'?'1차':sig==='ENTRY2_READY'?'2차':'3차';
+    title=`⚡ ${stepLbl} 진입 실행 가이드`; col='#38c4d8';
+    rows=[
+      {t:'SGOV', d:`매도 (투입액 ${fmt(invest)})`, q:`-${sellSgovSh.toFixed(2)}주`, neg:true},
+      {t:'SPY',  d:`매수 (2/3 비중)`,               q:`+${buySpySh.toFixed(3)}주`, neg:false},
+      {t:'QQQ',  d:`매수 (1/3 비중)`,               q:`+${buyQqqSh.toFixed(3)}주`, neg:false},
+    ];
+    note=`투입액 = 순자산×${sig==='ENTRY3_READY'?'SGOV 잔액 전부':'12%'} (SGOV 보유액 한도 내)<br>수수료 0.5% 별도 — 실제 체결가 기준으로 재계산 권장`;
+
+  }else if(sig==='REBAL_FULL_READY'){
+    // 전술+기본 통합 후 40:20:40 재분배 — 목표 대비 현재 비중 차이만큼 매매
+    const targetSPY=netTotal*0.40, targetQQQ=netTotal*0.20, targetSGOV=netTotal*0.40;
+    const dSPY=targetSPY-vSPY, dQQQ=targetQQQ-vQQQ, dSGOV=targetSGOV-vSGOV;
+    const shSPY = spyPrice? dSPY/spyPrice:0, shQQQ = qqqPrice? dQQQ/qqqPrice:0, shSGOV = dSGOV/sgovPrice;
+    title='⚖️ 완전 리밸 실행 가이드 (40:20:40 재분배)'; col='#26bfad';
+    rows=[
+      {t:'SPY',  d:'목표 40%로 조정', q:`${shSPY>=0?'+':''}${shSPY.toFixed(3)}주`, neg:shSPY<0},
+      {t:'QQQ',  d:'목표 20%로 조정', q:`${shQQQ>=0?'+':''}${shQQQ.toFixed(3)}주`, neg:shQQQ<0},
+      {t:'SGOV', d:'목표 40%로 조정', q:`${shSGOV>=0?'+':''}${shSGOV.toFixed(3)}주`, neg:shSGOV<0},
+    ];
+    note='전술 포지션 전체를 기본 포지션에 통합한 뒤 40:20:40 비중으로 재분배<br>+ 표시는 매수, − 표시는 매도';
+
+  }else if(sig==='REBAL_DOWN1_READY'||sig==='REBAL_DOWN2_READY'){
+    const invest = netTotal*0.25;
+    const spyBuyVal = invest*(2/3), qqqBuyVal = invest*(1/3);
+    const buySpySh = spyPrice ? spyBuyVal/spyPrice : 0;
+    const buyQqqSh = qqqPrice ? qqqBuyVal/qqqPrice : 0;
+    const stepLbl = sig==='REBAL_DOWN1_READY'?'1차 (평단-20%)':'2차 (평단-40%)';
+    title=`💸 하락 리밸 ${stepLbl} 실행 가이드`; col='#a87ef5';
+    rows=[
+      {t:'외부현금', d:`신규 투입 (순자산×25%)`, q:`${fmt(invest)}`, neg:false, isCash:true},
+      {t:'SPY',  d:'매수 (2/3 비중)', q:`+${buySpySh.toFixed(3)}주`, neg:false},
+      {t:'QQQ',  d:'매수 (1/3 비중)', q:`+${buyQqqSh.toFixed(3)}주`, neg:false},
+    ];
+    note=`외부현금(계좌 밖 자금)을 새로 투입 — 매도할 자산 없음<br>SPY 평단가 ${fmt(c.spy_avg)} 대비 현재 ${fp(c.spy_loss,true)}`;
+    warn='⚠️ 외부현금 투입은 부채 성격 — 다음 완전 리밸 시 우선 상환됩니다';
+
+  }else{
+    document.getElementById('execGuideCard').innerHTML='';
+    return;
+  }
+
+  document.getElementById('execGuideCard').innerHTML=`
+    <div class="exec-card" style="border-color:${col}">
+      <div class="exec-title" style="color:${col}">${title}</div>
+      ${holdingsMissing?'<div class="exec-warn">⚠️ 포트폴리오 현황에 보유 수량을 입력하면 정확한 매매 주수가 계산됩니다</div>':''}
+      ${rows.map(r=>`
+        <div class="exec-row">
+          <span class="exec-ticker" style="color:${r.isCash?'#5a7490':r.neg?'#e05b4b':'#3dbe7a'}">${r.t}</span>
+          <span class="exec-desc">${r.d}</span>
+          <span class="exec-qty" style="color:${r.isCash?'#5a7490':r.neg?'#e05b4b':'#3dbe7a'}">${r.q}</span>
+        </div>`).join('')}
+      <div class="exec-note">${note}</div>
+      ${warn?`<div class="exec-warn">${warn}</div>`:''}
     </div>`;
 }
 
@@ -1052,6 +1162,7 @@ function renderAll(){
   renderSimLog();
   renderParams();
   calcPort();
+  renderExecGuide();
 }
 function sw(t,btn){
   curTicker=t;
