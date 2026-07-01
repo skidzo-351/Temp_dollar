@@ -181,9 +181,9 @@ tr.sim-row td{opacity:.3}
   <div class="hb">
     <span class="bg">SPY 40% + QQQ 20% + SGOV 40%</span>
     <span class="ba">진입 -5/-10/-15% | 청산없음 → 통합리밸</span>
-    <span class="bb">60M 롤링 회귀선</span>
+    <span class="bb">400일 SMA (일별)</span>
     <span class="bp">과열 리밸 +15% | 하락 리밸 평단-20%/-40%</span>
-    <span class="bg" style="opacity:.7">백테스트 $1,339,292 | CAGR 6.5% | MDD 49.9%</span>
+    <span class="bg" style="opacity:.7">백테스트 $1,858,102 | CAGR 10.4% | MDD 54.4% (22년)</span>
   </div>
 </header>
 
@@ -384,7 +384,7 @@ tr.sim-row td{opacity:.3}
     <!-- 차트 -->
     <div class="panel">
       <div class="ph" onclick="togglePanel(this)">
-        <span>가격 + 60M 회귀선</span>
+        <span>가격 + 400일 SMA</span>
         <span id="cn" style="color:var(--amber);margin-right:8px"></span>
       </div>
       <div class="pb">
@@ -532,7 +532,7 @@ function renderChecklist(){
     {
       key:'spy', done:cl.spy,
       ticker:'SPY', label:'기본 비중 40% 진입',
-      desc:'60M 회귀선 기준 괴리율 확인 후 진입',
+      desc:'400일 SMA 기준 괴리율 확인 후 진입',
       badge: cl.spy ? '완료' : '즉시 진입',
       badgeCls: cl.spy ? 'badge-done' : 'badge-wait',
       cls: cl.spy ? 'done' : 'wait',
@@ -901,7 +901,7 @@ function renderSignal(){
       <div class="sc-right">
         <div class="sc-item"><dt>신호</dt><dd style="color:${col}">${SIG_MSG[sig]||sig}</dd></div>
         <div class="sc-item"><dt>SPY 현재가</dt><dd>${fmt(c.close)}</dd></div>
-        <div class="sc-item"><dt>60M 예측가</dt><dd>${fmt(c.predicted)}</dd></div>
+        <div class="sc-item"><dt>400일 SMA</dt><dd>${fmt(c.predicted)}</dd></div>
         <div class="sc-item"><dt>신고가</dt><dd>${fmt(c.peak)}</dd></div>
         <div class="sc-item"><dt>기준일</dt><dd>${c.date||'—'}</dd></div>
         <div class="sc-item"><dt>백테스트</dt><dd style="color:var(--dim)">${pLbl(c.position||0)}</dd></div>
@@ -957,7 +957,7 @@ function drawPriceChart(){
   const W=cv.width,H=cv.height,P={l:66,r:10,t:10,b:22};
   const ctx=cv.getContext('2d');
   const closes=a.closes||[],preds=a.predicted||[],dates=a.dates||[];
-  const SHOW=Math.min(closes.length,120);
+  const SHOW=Math.min(closes.length,500);
   const sl=closes.slice(-SHOW),pl=preds.slice(-SHOW),dl=dates.slice(-SHOW);
   const gS=closes.length-SHOW;
   const allV=[...sl,...pl.filter(v=>v!=null)];
@@ -1023,12 +1023,12 @@ function drawPriceChart(){
 
   document.getElementById('priceLeg').innerHTML=[
     `<span><span class="lw" style="background:${CV.price}"></span>SPY</span>`,
-    `<span><span class="lw" style="background:${CV.pred};opacity:.7"></span>60M 회귀선</span>`,
+    `<span><span class="lw" style="background:${CV.pred};opacity:.7"></span>400일 SMA</span>`,
     startDate?`<span><span class="lw" style="background:${CV.start_line}"></span>투자시작</span>`:'',
     `<span><span class="lt" style="border-bottom-color:${CV.entry}"></span>진입</span>`,
     `<span><span class="ld" style="background:${CV.rebal_hot}"></span>통합리밸</span>`,
   ].filter(Boolean).join('');
-  document.getElementById('cn').textContent=`최근 ${SHOW}개월`;
+  document.getElementById('cn').textContent=`최근 ${SHOW}거래일`;
 }
 
 /* ── 괴리율 차트 ── */
@@ -1038,7 +1038,7 @@ function drawDivChart(){
   cv.width=cv.parentElement.offsetWidth-24;
   const W=cv.width,H=cv.height,P={l:46,r:10,t:8,b:20};
   const ctx=cv.getContext('2d');
-  const SHOW=Math.min((a.divergence||[]).length,120);
+  const SHOW=Math.min((a.divergence||[]).length,500);
   const divs=(a.divergence||[]).slice(-SHOW).map(v=>v??null);
   const dates=(a.dates||[]).slice(-SHOW);
   const vals=divs.filter(v=>v!=null);
@@ -1092,7 +1092,7 @@ function renderParams(){
       <div class="pb-title">포트폴리오</div>
       <div class="pb-row"><span class="pb-key">기본 비중</span><span class="pb-val pos">SPY 40% · QQQ 20% · SGOV 40%</span></div>
       <div class="pb-row"><span class="pb-key">월 DCA (기본)</span><span class="pb-val">SPY $200 · QQQ $100 · SGOV $200</span></div><div class="pb-row"><span class="pb-key">월 DCA (저평가 괴리율&lt;-3%)</span><span class="pb-val pos">SPY $250 · QQQ $125 · SGOV $125</span></div>
-      <div class="pb-row"><span class="pb-key">신호</span><span class="pb-val">SPY 60M 롤링 회귀선 괴리율</span></div>
+      <div class="pb-row"><span class="pb-key">신호</span><span class="pb-val">SPY 400일 SMA 괴리율 (일별)</span></div>
       <div class="pb-row"><span class="pb-key">1차 진입 (-5%)</span><span class="pb-val">SGOV×12% → 2:1</span></div>
       <div class="pb-row"><span class="pb-key">2차 진입 (-10%)</span><span class="pb-val">SGOV×12% → 2:1</span></div>
       <div class="pb-row"><span class="pb-key">3차 진입 (-15%)</span><span class="pb-val">SGOV 잔액 전부</span></div>
@@ -1101,6 +1101,7 @@ function renderParams(){
       <div class="pb-title">청산 · 리밸</div>
       <div class="pb-row"><span class="pb-key">분할청산</span><span class="pb-val" style="color:var(--dim)">없음 — 통합리밸로 대체</span></div>
       <div class="pb-row"><span class="pb-key">완전 리밸 (+15% 교차)</span><span class="pb-val" style="color:var(--teal)">전술+기본 통합 → 40:20:40 → SAFE</span></div>
+      <div class="pb-row"><span class="pb-key">리밸 쿨다운</span><span class="pb-val" style="color:var(--dim)">재발동까지 최소 60거래일 (노이즈 방지)</span></div>
       <div class="pb-row"><span class="pb-key">하락 리밸1 (평단-20%)</span><span class="pb-val" style="color:var(--purple)">외부현금 25%</span></div>
       <div class="pb-row"><span class="pb-key">하락 리밸2 (평단-40%)</span><span class="pb-val" style="color:var(--purple)">외부현금 25% 추가</span></div>
       <div class="pb-row"><span class="pb-key">수수료</span><span class="pb-val">0.5% 편도</span></div>
