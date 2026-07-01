@@ -40,13 +40,7 @@ main{max-width:1080px;margin:0 auto;padding:14px 20px 80px}
 .sb-hint{font-family:var(--mono);font-size:10px;color:var(--dim);flex:1;min-width:120px}
 
 /* ── 체크리스트 ── */
-.checklist{background:var(--s2);border:1px solid var(--b);border-radius:6px;padding:14px 16px;margin-bottom:12px}
-.cl-title{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
-.cl-items{display:flex;flex-direction:column;gap:7px}
-.cl-item{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;padding:8px 12px;border-radius:4px;border:1px solid}
-.cl-item.done{background:rgba(61,190,122,.06);border-color:rgba(61,190,122,.25)}
-.cl-item.wait{background:rgba(232,163,58,.05);border-color:rgba(232,163,58,.2)}
-.cl-item.pending{background:rgba(74,143,232,.05);border-color:rgba(74,143,232,.2)}
+
 .cl-icon{font-size:16px;width:22px;text-align:center;flex-shrink:0}
 .cl-main{flex:1}
 .cl-ticker{font-weight:700;margin-right:8px}
@@ -191,6 +185,41 @@ tr.sim-row td{opacity:.3}
   <div id="loading">📡 신호 데이터 로딩 중...</div>
   <div id="app" style="display:none">
 
+    <!-- 신호 모니터링 (최상단) -->
+    <div class="sec">📡 신호 모니터링</div>
+    <div class="tabs">
+      <button class="tab active" onclick="sw('SPY',this)">SPY</button>
+      <button class="tab" onclick="sw('QQQ',this)">QQQ</button>
+    </div>
+
+    <!-- 실제 포지션 (시작일 설정 시) -->
+    <div id="realPositionSection" style="display:none">
+      <div id="positionCard"></div>
+    </div>
+
+    <!-- 현재 신호 카드 -->
+    <div id="signalCard"></div>
+
+    <!-- 차트 -->
+    <div class="panel">
+      <div class="ph" onclick="togglePanel(this)">
+        <span>가격 + 400일 SMA</span>
+        <span id="cn" style="color:var(--amber);margin-right:8px"></span>
+      </div>
+      <div class="pb">
+        <canvas id="priceC" height="220"></canvas>
+        <div class="leg" id="priceLeg"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph" onclick="togglePanel(this)">
+        <span>괴리율 히스토리</span>
+        <span style="color:var(--dim);font-size:10px">-5/-10/-15% | 리밸 동적18~25%</span>
+      </div>
+      <div class="pb"><canvas id="divC" height="140"></canvas></div>
+    </div>
+
     <!-- 환율 배너 -->
     <div class="fx-banner" id="fxBanner">
       <div>
@@ -218,12 +247,6 @@ tr.sim-row td{opacity:.3}
       <button class="sb-btn set" onclick="setStartDate()">설정</button>
       <button class="sb-btn clr" onclick="clearStartDate()">초기화</button>
       <span class="sb-hint" id="startHint">시작일 설정 시 실제 포지션 추적 시작</span>
-    </div>
-
-    <!-- 초기 진입 체크리스트 -->
-    <div class="checklist" id="checklistSection">
-      <div class="cl-title">📋 초기 진입 체크리스트</div>
-      <div class="cl-items" id="clItems"></div>
     </div>
 
     <!-- 포트폴리오 현황 (수량 입력 + 비중) -->
@@ -366,41 +389,6 @@ tr.sim-row td{opacity:.3}
       </div>
     </div>
 
-    <!-- 탭 -->
-    <div class="sec">📡 신호 모니터링</div>
-    <div class="tabs">
-      <button class="tab active" onclick="sw('SPY',this)">SPY</button>
-      <button class="tab" onclick="sw('QQQ',this)">QQQ</button>
-    </div>
-
-    <!-- 실제 포지션 (시작일 설정 시) -->
-    <div id="realPositionSection" style="display:none">
-      <div id="positionCard"></div>
-    </div>
-
-    <!-- 현재 신호 카드 -->
-    <div id="signalCard"></div>
-
-    <!-- 차트 -->
-    <div class="panel">
-      <div class="ph" onclick="togglePanel(this)">
-        <span>가격 + 400일 SMA</span>
-        <span id="cn" style="color:var(--amber);margin-right:8px"></span>
-      </div>
-      <div class="pb">
-        <canvas id="priceC" height="220"></canvas>
-        <div class="leg" id="priceLeg"></div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="ph" onclick="togglePanel(this)">
-        <span>괴리율 히스토리</span>
-        <span style="color:var(--dim);font-size:10px">-5/-10/-15% | 리밸 동적18~25%</span>
-      </div>
-      <div class="pb"><canvas id="divC" height="140"></canvas></div>
-    </div>
-
     <!-- 실제 거래 -->
     <div id="realTradeSection" style="display:none">
       <div class="sec">✅ 실제 거래 내역 <span id="realTradeStat" style="color:var(--green);font-weight:normal"></span></div>
@@ -443,7 +431,6 @@ tr.sim-row td{opacity:.3}
 'use strict';
 const LS = {
   start: 'sgov_start_date',
-  cl:    'sgov_checklist',
   port:  'sgov_portfolio',      // {spy, qqq, sgov, cash, init}
   fx:    'sgov_fx_cache',       // {rate, prev, time}
 };
@@ -507,71 +494,6 @@ function clearStartDate(){
   startDate=''; localStorage.removeItem(LS.start);
   document.getElementById('startDateInput').value='';
   updateStartBanner(); renderAll();
-}
-
-/* ── 초기 진입 체크리스트 ── */
-function loadCL(){ return JSON.parse(localStorage.getItem(LS.cl)||'{"spy":false,"qqq":false,"sgov":false}'); }
-function saveCL(obj){ localStorage.setItem(LS.cl, JSON.stringify(obj)); }
-function toggleCL(key){
-  const cl=loadCL(); cl[key]=!cl[key]; saveCL(cl); renderChecklist();
-}
-function renderChecklist(){
-  const cl  = loadCL();
-  const spy = D?.assets?.SPY?.current;
-  const qqq = D?.assets?.QQQ?.current;
-  const spyDiv = spy?.divergence;
-  const qqqDiv = qqq?.divergence;
-
-  // QQQ 조건 확인
-  const qqqReady = qqqDiv!=null && qqqDiv <= 2.0;
-  const qqqStatus = qqqDiv!=null
-    ? (qqqReady ? `조건 충족 (${fp(qqqDiv,true)})` : `대기 중 — 현재 ${fp(qqqDiv,true)}, 목표 ≤ +2%`)
-    : '데이터 로딩 중';
-
-  const items = [
-    {
-      key:'spy', done:cl.spy,
-      ticker:'SPY', label:'기본 비중 40% 진입',
-      desc:'400일 SMA 기준 괴리율 확인 후 진입',
-      badge: cl.spy ? '완료' : '즉시 진입',
-      badgeCls: cl.spy ? 'badge-done' : 'badge-wait',
-      cls: cl.spy ? 'done' : 'wait',
-      icon: cl.spy ? '✅' : '🟡',
-    },
-    {
-      key:'qqq', done:cl.qqq,
-      ticker:'QQQ', label:'기본 비중 20% 진입',
-      desc: cl.qqq ? '진입 완료' : qqqStatus,
-      badge: cl.qqq ? '완료' : (qqqReady ? '조건 충족!' : '괴리율 ≤ 2% 대기'),
-      badgeCls: cl.qqq ? 'badge-done' : (qqqReady ? 'badge-wait' : 'badge-date'),
-      cls: cl.qqq ? 'done' : (qqqReady ? 'wait' : 'pending'),
-      icon: cl.qqq ? '✅' : (qqqReady ? '🟡' : '⏳'),
-    },
-    {
-      key:'sgov', done:cl.sgov,
-      ticker:'SGOV', label:'기본 비중 40% 매수',
-      desc: cl.sgov ? '매수 완료' : '배당락일 다음날 매수 — 2026-07-02 (수)',
-      badge: cl.sgov ? '완료' : '7월 2일 (수)',
-      badgeCls: cl.sgov ? 'badge-done' : 'badge-date',
-      cls: cl.sgov ? 'done' : 'pending',
-      icon: cl.sgov ? '✅' : '📅',
-    },
-  ];
-
-  document.getElementById('clItems').innerHTML = items.map(it=>`
-    <div class="cl-item ${it.cls}">
-      <span class="cl-icon">${it.icon}</span>
-      <div class="cl-main">
-        <span class="cl-ticker" style="color:${it.key==='spy'?'#4a8fe8':it.key==='qqq'?'#a87ef5':'#e8a33a'}">${it.ticker}</span>
-        <span style="font-weight:600">${it.label}</span>
-        <div class="cl-desc" style="margin-top:2px">${it.desc}</div>
-      </div>
-      <span class="cl-badge ${it.badgeCls}">${it.badge}</span>
-      <label style="cursor:pointer;display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;color:var(--dim)">
-        <input type="checkbox" class="cl-check" ${it.done?'checked':''} onchange="toggleCL('${it.key}')">
-        완료
-      </label>
-    </div>`).join('');
 }
 
 /* ── 환율 로드 ── */
@@ -1122,7 +1044,6 @@ function togglePanel(ph){
 
 /* ── 메인 ── */
 function renderAll(){
-  renderChecklist();
   renderPositionCard();
   renderSignal();
   drawPriceChart();
