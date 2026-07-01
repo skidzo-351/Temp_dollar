@@ -182,7 +182,7 @@ tr.sim-row td{opacity:.3}
     <span class="bg">SPY 40% + QQQ 20% + SGOV 40%</span>
     <span class="ba">진입 -5/-10/-15% | 청산없음 → 통합리밸</span>
     <span class="bb">400일 SMA (일별)</span>
-    <span class="bp">과열 리밸 +15% | 하락 리밸 평단-20%/-40%</span>
+    <span class="bp">완전 리밸 동적18~25% | 하락 리밸 평단-20%/-40%</span>
     <span class="bg" style="opacity:.7">백테스트 $2,620,350 | CAGR 12.1% | MDD 55.3% (22년)</span>
   </div>
 </header>
@@ -396,7 +396,7 @@ tr.sim-row td{opacity:.3}
     <div class="panel">
       <div class="ph" onclick="togglePanel(this)">
         <span>괴리율 히스토리</span>
-        <span style="color:var(--dim);font-size:10px">-5/-10/-15% | 리밸+15% | +20%</span>
+        <span style="color:var(--dim);font-size:10px">-5/-10/-15% | 리밸 동적18~25%</span>
       </div>
       <div class="pb"><canvas id="divC" height="140"></canvas></div>
     </div>
@@ -473,7 +473,7 @@ const SIG_MSG = {
   ENTRY1_READY:'⚡ 1차 진입 가능', ENTRY2_READY:'⚡ 2차 진입 가능', ENTRY3_READY:'⚡ 3차 진입 가능',
   REBAL_FULL_READY:'⚖️ 완전 리밸 — 전술+기본 통합 → 40:20:40 → SAFE',
 };
-const divColor = d => d==null?CV.dim:d<-10?'#e05b4b':d<-3?'#e8a33a':d>15?'#26bfad':d>5?'#e8a33a':'#3dbe7a';
+const divColor = d => d==null?CV.dim:d<-10?'#e05b4b':d<-3?'#e8a33a':d>18?'#26bfad':d>5?'#e8a33a':'#3dbe7a';
 const fmt  = v => (v==null||isNaN(v))?'—':'$'+Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
 const fp   = (v,s=true) => (v==null||isNaN(v))?'—':(s&&v>=0?'+':'')+Number(v).toFixed(2)+'%';
 const pLbl = p => p>=0.99?'3차 진입':p>=0.69?'2차 진입':p>=0.34?'1차 진입':'SAFE';
@@ -840,14 +840,14 @@ function renderPositionCard(){
   } else if(es===1){
     if(div!=null&&div<=-10)    nextAction=`⚡ <b style="color:var(--blue)">2차 진입 가능</b> — SGOV 순자산×12% 추가`;
     else if(div!=null&&div>=15) nextAction=`⚖️ <b style="color:var(--teal)">통합 리밸 가능</b> — 전술+기본 통합 → 40:20:40`;
-    else                        nextAction=`보유 중 (2차 진입: -10% | 통합리밸: +15%)`;
+    else                        nextAction=`보유 중 (2차 진입: -10% | 통합리밸: 동적18~25%)`;
   } else if(es===2){
     if(div!=null&&div<=-15)    nextAction=`⚡ <b style="color:var(--green)">3차 진입 가능</b> — SGOV 잔액 전부`;
     else if(div!=null&&div>=15) nextAction=`⚖️ <b style="color:var(--teal)">통합 리밸 가능</b> — 전술+기본 통합 → 40:20:40`;
-    else                        nextAction=`보유 중 (3차 진입: -15% | 통합리밸: +15%)`;
+    else                        nextAction=`보유 중 (3차 진입: -15% | 통합리밸: 동적18~25%)`;
   } else if(es===3){
     if(div!=null&&div>=15)      nextAction=`⚖️ <b style="color:var(--teal)">통합 리밸 가능</b> — 전술+기본 통합 → 40:20:40`;
-    else                        nextAction=`보유 중 (통합리밸: +15% | 하락리밸: 평단-20%)`;
+    else                        nextAction=`보유 중 (통합리밸: 동적18~25% | 하락리밸: 평단-20%)`;
   }
 
   const sc=es===0?CV.dim:'#38c4d8';
@@ -889,7 +889,7 @@ function renderSignal(){
   const c=a.current, div=c.divergence, sig=c.signal||'WAITING';
   const sigColorMap={WAITING:CV.dim,HOLDING:'#e8a33a',
     ENTRY1_READY:'#38c4d8',ENTRY2_READY:'#4a8fe8',ENTRY3_READY:'#3dbe7a',
-    EXIT_READY:'#e05b4b',REBAL_HOT_READY:'#26bfad',REBAL_FULL_READY:'#26bfad'};
+    REBAL_FULL_READY:'#26bfad'};
   const col=sigColorMap[sig]||CV.dim;
   const rthr=c.rebal_thr;
   document.getElementById('signalCard').innerHTML=`
