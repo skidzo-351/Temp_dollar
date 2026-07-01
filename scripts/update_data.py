@@ -1,28 +1,30 @@
 #!/usr/bin/env python3
 """
-최종 확정 전략 v4 — 일간 신호 계산 스크립트
+최종 전략 v5 — 400일 SMA 기반 일간 신호 계산 스크립트
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-데이터:    일별 수집 → 월별 리샘플링 → 60M 회귀선 계산
-           (백테스트와 동일한 기준, 현재가는 일별 최신값 표시)
+데이터:    일별 수집 → 일별 그대로 사용 (리샘플링 없음)
+신호:      SPY 400일 단순이동평균(SMA) 괴리율
 
 포트폴리오: SPY 40% + QQQ 20% + SGOV 40%
-신호:       SPY 60M 롤링 회귀선 괴리율
 
-월 DCA (동적):
-  괴리율 ≥ -3%  →  SPY $200 + QQQ $100 + SGOV $200
-  괴리율 < -3%  →  SPY $250 + QQQ $125 + SGOV $125
+월 DCA (동적, 매월 첫 거래일):
+  괴리율(전일 기준) ≥ -3%  →  SPY $200 + QQQ $100 + SGOV $200
+  괴리율(전일 기준) < -3%  →  SPY $250 + QQQ $125 + SGOV $125
 
 진입:  1차(-5%) / 2차(-10%) / 3차(-15%)
 리밸:  +15% 교차 → 전술+기본 통합 → 40:20:40 → SAFE
+       (쿨다운 60거래일: 재발동까지 최소 60거래일 대기 — SMA 노이즈로 인한 과매매 방지)
 하락:  평단 -20%/-40% → 외부현금 25%+25%
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-백테스트(1995-2024): $1,339,292 | CAGR 6.5% | MDD 49.9%
+백테스트(1994-08~2026-07, 22년): $1,858,102 | CAGR 10.4% | MDD 54.4%
+  (SPY40:QQQ20:SGOV40 | 진입17회 | 리밸29회 | 쿨다운3개월)
+  ※ 60M(월별) 방식 대비 CAGR +3.9%p 높으나 MDD +4.5%p, 거래빈도 2.4배
 """
 import json, os, urllib.request, time
 from datetime import datetime
 
 # ── 전략 파라미터 ────────────────────────────────────────────
-REG_WIN        = 60      # 60개월 (월별 기준, 백테스트와 동일)
+SMA_WIN        = 400     # 400 거래일 단순이동평균
 W_SPY, W_QQQ, W_SGOV = 0.40, 0.20, 0.40
 
 ENTRY1_DIV  = -5.0
@@ -32,6 +34,7 @@ ENTRY1_PCT  = 0.12
 ENTRY2_PCT  = 0.12
 
 REBAL_FULL_THR  = +15.0
+REBAL_COOLDOWN  = 60      # 거래일. 리밸 후 재발동까지 최소 대기 (노이즈 방지)
 DCA_DIV_THR     = -3.0
 DCA_BASE = {'spy': 200, 'qqq': 100, 'sgov': 200}
 DCA_BULL = {'spy': 250, 'qqq': 125, 'sgov': 125}
@@ -46,7 +49,7 @@ ASSETS = {
 }
 
 # ── 일별 데이터 수집 ─────────────────────────────────────────
-def fetch_stooq_daily(symbol, days=2000):
+def fetch_stooq_daily(symbol, days=9000):
     url = f"https://stooq.com/q/d/l/?s={symbol}&i=d"
     req = urllib.request.Request(url, headers={
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -65,12 +68,16 @@ def fetch_stooq_daily(symbol, days=2000):
     recs = []
     for ln in lines[1:]:
         p = ln.split(',')
-        try: recs.append({'date': p[di], 'close': float(p[ci])})
+        try:
+            d = p[di]
+            if d < '1993-01-01':   # 1993년 이전은 월별 역산 데이터라 제외
+                continue
+            recs.append({'date': d, 'close': float(p[ci])})
         except: pass
     return recs[-days:] if len(recs) > days else recs
 
-def fetch_yahoo_daily(symbol, days=2000):
-    end = int(time.time()); start = end - days * 86400 * 2
+def fetch_yahoo_daily(symbol, days=9000):
+    end = int(time.time()); start = end - days * 86400
     url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
            f"?period1={start}&period2={end}&interval=1d")
     req = urllib.request.Request(url, headers={
@@ -90,132 +97,116 @@ def fetch_yahoo_daily(symbol, days=2000):
     except Exception as e:
         print(f"  ⚠ yahoo ({symbol}): {e}"); return None
 
-def fetch_daily(symbol_s, symbol_y, days=2000):
+def fetch_daily(symbol_s, symbol_y, days=9000):
     print(f"  일별 수집: {symbol_s}…")
     d = fetch_stooq_daily(symbol_s, days)
-    if d and len(d) > 100:
-        print(f"    stooq {len(d)}개")
+    if d and len(d) > SMA_WIN + 100:
+        print(f"    stooq {len(d)}개 ({d[0]['date']} ~ {d[-1]['date']})")
         return d
     print(f"  Yahoo fallback: {symbol_y}…")
     d = fetch_yahoo_daily(symbol_y, days)
-    if d and len(d) > 100:
-        print(f"    yahoo {len(d)}개")
+    if d and len(d) > SMA_WIN + 100:
+        print(f"    yahoo {len(d)}개 ({d[0]['date']} ~ {d[-1]['date']})")
         return d
     return []
 
-# ── 일별 → 월별 리샘플링 ─────────────────────────────────────
-def resample_monthly(daily_recs):
+# ── 400일 SMA 신호 계산 (일별 데이터 그대로) ──────────────────
+def calc_sma(closes, i, win):
+    if i < win: return None
+    return sum(closes[i-win:i]) / win
+
+def calc_signals(dates, closes):
     """
-    일별 데이터를 월별 종가로 리샘플링
-    각 월의 마지막 거래일 종가 사용 (백테스트와 동일)
+    일별 종가 배열에 대해 400일 SMA 괴리율 기반 신호 계산.
+    반환: trades(거래 리스트), states(일별 상태 리스트, SMA 계산 가능 구간부터)
     """
-    monthly = {}
-    for r in daily_recs:
-        ym = r['date'][:7]  # 'YYYY-MM'
-        monthly[ym] = r     # 같은 달이면 덮어쓰기 → 마지막 거래일 남음
+    N = len(closes)
+    if N < SMA_WIN + 30: return [], []
 
-    result = []
-    for ym in sorted(monthly.keys()):
-        r = monthly[ym]
-        result.append({'date': ym + '-01',  # 월 표시용 (실제론 월말 종가)
-                       'date_label': ym,
-                       'close': r['close'],
-                       'date_actual': r['date']})  # 실제 거래일
-    return result
-
-# ── 선형회귀 ─────────────────────────────────────────────────
-def linreg(vals):
-    n = len(vals)
-    if n < 2: return 0.0, vals[0] if vals else 0.0
-    xm = (n-1)/2.0; ym = sum(vals)/n
-    num = sum((i-xm)*(v-ym) for i,v in enumerate(vals))
-    den = sum((i-xm)**2 for i in range(n))
-    slope = num/den if den else 0.0
-    return slope, ym-slope*xm
-
-# ── 신호 계산 (월별 데이터 기준, 백테스트와 동일) ─────────────
-def calc_signals(monthly_closes):
-    N = len(monthly_closes)
-    if N < REG_WIN + 5: return [], []
+    # 월별 DCA 발생일(각 달의 첫 거래일) 인덱스
+    month_first = {}
+    for i, dt in enumerate(dates):
+        ym = dt[:7]
+        if ym not in month_first:
+            month_first[ym] = i
+    dca_days = set(month_first.values())
 
     es = 0; rs = 0; prev_over = False
-    # 전술 포지션: SPY/QQQ 주식수 + 원가 분리 추적 (개선된 백테스트 로직)
     tac_spy_sh = 0.0; tac_spy_cost = 0.0
     tac_qqq_sh = 0.0; tac_qqq_cost = 0.0
     trades = []; states = []
-    running_peak = monthly_closes[0]
+    running_peak = closes[0]
+    last_rebal_i = -999999
     pos_map = {0: 0.0, 1: 0.35, 2: 0.70, 3: 1.0}
 
-    for i in range(REG_WIN, N):
-        if es == 0 and monthly_closes[i] > running_peak:
-            running_peak = monthly_closes[i]
+    for i in range(SMA_WIN, N):
+        if es == 0 and closes[i] > running_peak:
+            running_peak = closes[i]
 
-        window = monthly_closes[i - REG_WIN: i]
-        slope, intercept = linreg(window)
-        predicted = intercept + slope * REG_WIN
-
-        if not predicted:
-            states.append({'i': i, 'close': monthly_closes[i],
-                           'predicted': None, 'divergence': None,
-                           'position': pos_map.get(es, 0.0), 'peak': running_peak})
+        s = calc_sma(closes, i, SMA_WIN)
+        if not s:
+            states.append({'i': i, 'close': closes[i], 'predicted': None,
+                           'divergence': None, 'position': pos_map.get(es, 0.0),
+                           'peak': running_peak})
             continue
 
-        divergence = (monthly_closes[i] - predicted) / predicted * 100.0
-        # SPY 평단가: 실제 원가/주식수 기반 (정확한 하락리밸 트리거)
+        divergence = (closes[i] - s) / s * 100.0
         spy_avg  = tac_spy_cost / tac_spy_sh if tac_spy_sh > 1e-9 else 0.0
-        spy_loss = (monthly_closes[i] - spy_avg) / spy_avg * 100 if spy_avg > 0 else 0.0
+        spy_loss = (closes[i] - spy_avg) / spy_avg * 100 if spy_avg > 0 else 0.0
         action = None
 
-        # ① 완전 리밸: +15% 교차
-        if divergence >= REBAL_FULL_THR and not prev_over:
+        # ① 완전 리밸: +15% 교차 (쿨다운 적용 — SMA 노이즈로 인한 과매매 방지)
+        can_rebal = (i - last_rebal_i) >= REBAL_COOLDOWN
+        if divergence >= REBAL_FULL_THR and not prev_over and can_rebal:
             tac_spy_sh = 0.0; tac_spy_cost = 0.0
             tac_qqq_sh = 0.0; tac_qqq_cost = 0.0
             es = 0; rs = 0; action = 'REBAL_FULL'
+            last_rebal_i = i
         prev_over = (divergence >= REBAL_FULL_THR)
 
         # ② 진입
         if action is None and es == 0 and divergence <= ENTRY1_DIV:
-            inv = monthly_closes[i] * ENTRY1_PCT
-            tac_spy_sh += inv * (2/3) / monthly_closes[i]; tac_spy_cost += inv * (2/3)
-            tac_qqq_sh += inv * (1/3) / monthly_closes[i]; tac_qqq_cost += inv * (1/3)
+            inv = closes[i] * ENTRY1_PCT
+            tac_spy_sh += inv*(2/3)/closes[i]; tac_spy_cost += inv*(2/3)
+            tac_qqq_sh += inv*(1/3)/closes[i]; tac_qqq_cost += inv*(1/3)
             es = 1; action = 'ENTRY1'
         elif action is None and es == 1 and divergence <= ENTRY2_DIV:
-            inv = monthly_closes[i] * ENTRY2_PCT
-            tac_spy_sh += inv * (2/3) / monthly_closes[i]; tac_spy_cost += inv * (2/3)
-            tac_qqq_sh += inv * (1/3) / monthly_closes[i]; tac_qqq_cost += inv * (1/3)
+            inv = closes[i] * ENTRY2_PCT
+            tac_spy_sh += inv*(2/3)/closes[i]; tac_spy_cost += inv*(2/3)
+            tac_qqq_sh += inv*(1/3)/closes[i]; tac_qqq_cost += inv*(1/3)
             es = 2; action = 'ENTRY2'
         elif action is None and es == 2 and divergence <= ENTRY3_DIV:
             amt = max(0.0, W_SGOV - ENTRY1_PCT - ENTRY2_PCT)
-            inv = monthly_closes[i] * amt
-            tac_spy_sh += inv * (2/3) / monthly_closes[i]; tac_spy_cost += inv * (2/3)
-            tac_qqq_sh += inv * (1/3) / monthly_closes[i]; tac_qqq_cost += inv * (1/3)
+            inv = closes[i] * amt
+            tac_spy_sh += inv*(2/3)/closes[i]; tac_spy_cost += inv*(2/3)
+            tac_qqq_sh += inv*(1/3)/closes[i]; tac_qqq_cost += inv*(1/3)
             es = 3; action = 'ENTRY3'
 
         # ③ 하락 리밸 (3차 이후)
         elif action is None and es == 3:
             if rs == 0 and spy_loss <= REBAL_DOWN1_LOSS:
-                inv = monthly_closes[i] * REBAL_DOWN_PCT
-                tac_spy_sh += inv * (2/3) / monthly_closes[i]; tac_spy_cost += inv * (2/3)
-                tac_qqq_sh += inv * (1/3) / monthly_closes[i]; tac_qqq_cost += inv * (1/3)
+                inv = closes[i] * REBAL_DOWN_PCT
+                tac_spy_sh += inv*(2/3)/closes[i]; tac_spy_cost += inv*(2/3)
+                tac_qqq_sh += inv*(1/3)/closes[i]; tac_qqq_cost += inv*(1/3)
                 rs = 1; action = 'REBAL_DOWN1'
             elif rs == 1 and spy_loss <= REBAL_DOWN2_LOSS:
-                inv = monthly_closes[i] * REBAL_DOWN_PCT
-                tac_spy_sh += inv * (2/3) / monthly_closes[i]; tac_spy_cost += inv * (2/3)
-                tac_qqq_sh += inv * (1/3) / monthly_closes[i]; tac_qqq_cost += inv * (1/3)
+                inv = closes[i] * REBAL_DOWN_PCT
+                tac_spy_sh += inv*(2/3)/closes[i]; tac_spy_cost += inv*(2/3)
+                tac_qqq_sh += inv*(1/3)/closes[i]; tac_qqq_cost += inv*(1/3)
                 rs = 2; action = 'REBAL_DOWN2'
 
         cur_pos = pos_map.get(es, 0.0)
         if action:
-            trades.append({'index': i, 'type': action,
+            trades.append({'index': i, 'date': dates[i], 'type': action,
                            'divergence': round(divergence, 2),
-                           'price': monthly_closes[i],
+                           'price': closes[i],
                            'position_after': cur_pos,
                            'avg_entry': round(spy_avg, 2) if spy_avg > 0 else None,
-                           'spy_loss': round(spy_loss, 2)})
-        states.append({'i': i, 'close': monthly_closes[i],
-                       'predicted': round(predicted, 4),
-                       'divergence': round(divergence, 4),
-                       'position': cur_pos, 'peak': running_peak})
+                           'spy_loss': round(spy_loss, 2),
+                           'is_dca_day': i in dca_days})
+        states.append({'i': i, 'close': closes[i], 'predicted': round(s, 4),
+                       'divergence': round(divergence, 4), 'position': cur_pos,
+                       'peak': running_peak, 'is_dca_day': i in dca_days})
 
     return trades, states
 
@@ -245,103 +236,76 @@ SIG_MSG = {
 def build(ticker, cfg):
     print(f"\n[{ticker}]")
 
-    # 1) 일별 데이터 수집 (최소 60개월+여유분 = 약 1500거래일 필요)
-    daily = fetch_daily(cfg['stooq'], cfg['yahoo'], days=2000)
+    daily = fetch_daily(cfg['stooq'], cfg['yahoo'], days=9000)
     if not daily:
         print(f"  ✗ 데이터 수집 실패")
         return None
-
-    # 2) 월별 리샘플링 (백테스트와 동일한 기준)
-    monthly = resample_monthly(daily)
-    if len(monthly) < REG_WIN + 10:
-        print(f"  ✗ 월별 데이터 부족 ({len(monthly)}개월, 필요 {REG_WIN+10}개월)")
+    if len(daily) < SMA_WIN + 30:
+        print(f"  ✗ 데이터 부족 ({len(daily)}개, 필요 {SMA_WIN+30}개)")
         return None
-    print(f"  리샘플링: 일별 {len(daily)}개 → 월별 {len(monthly)}개월")
 
-    m_dates  = [r['date_label'] for r in monthly]   # 'YYYY-MM'
-    m_dates_actual = [r['date_actual'] for r in monthly]  # 실제 월말 거래일
-    m_closes = [r['close'] for r in monthly]
+    dates  = [r['date']  for r in daily]
+    closes = [r['close'] for r in daily]
+    print(f"  일별 데이터: {len(daily)}개 ({dates[0]} ~ {dates[-1]})")
 
-    # 3) 신호 계산 (월별 기준, 백테스트와 완전 동일)
-    trades, states = calc_signals(m_closes)
+    trades, states = calc_signals(dates, closes)
     sig = get_signal(states)
 
-    # 4) 현재 정보
     last = states[-1] if states else {}
     pos  = last.get('position', 0.0)
     div  = last.get('divergence')
     pred = last.get('predicted')
     peak = last.get('peak')
 
-    # 현재가: 일별 최신값 (괴리율 계산은 월별이지만 현재가는 일별)
-    latest_close = daily[-1]['close']
-    latest_date  = daily[-1]['date']
+    latest_close = closes[-1]
+    latest_date  = dates[-1]
 
-    # 현재가 기준 실시간 괴리율 (참고용, 신호는 월말 기준)
-    div_realtime = round((latest_close - pred) / pred * 100, 2) if pred else None
-
-    # 시리즈 패딩 (월별 기준, 차트용)
-    pad    = REG_WIN
-    s_div  = [None]       * pad + [s['divergence'] for s in states]
-    s_pred = [None]       * pad + [s['predicted']  for s in states]
-    s_pos  = [0.0]        * pad + [s['position']   for s in states]
-    s_peak = [m_closes[0]] * pad + [s['peak']      for s in states]
-
-    # 일별 데이터도 함께 저장 (차트 확대용)
-    daily_dates  = [r['date']  for r in daily]
-    daily_closes = [r['close'] for r in daily]
+    pad    = SMA_WIN
+    s_div  = [None]         * pad + [s['divergence'] for s in states]
+    s_pred = [None]         * pad + [s['predicted']  for s in states]
+    s_pos  = [0.0]          * pad + [s['position']   for s in states]
+    s_peak = [closes[0]]    * pad + [s['peak']       for s in states]
 
     n_entry = sum(1 for t in trades if t['type'].startswith('ENTRY'))
     n_rebal = sum(1 for t in trades if 'REBAL' in t['type'])
 
-    print(f"  ✓ 신호={sig} | 월말괴리율={div}% | 실시간괴리율={div_realtime}%")
-    print(f"    월말종가={m_closes[-1]} ({m_dates_actual[-1]}) | 현재가={latest_close} ({latest_date})")
-    print(f"    예측가={pred} | 진입{n_entry}회 | 리밸{n_rebal}회")
+    print(f"  ✓ 신호={sig} | 400일SMA괴리율={div}% | 예측가(SMA)={pred}")
+    print(f"    현재가={latest_close} ({latest_date}) | 진입{n_entry}회 | 리밸{n_rebal}회")
 
     return {
         'ticker': ticker, 'name': cfg['name'],
 
-        # 월별 시리즈 (회귀선/괴리율 차트, 백테스트 기준)
-        'dates':      m_dates,
-        'dates_actual': m_dates_actual,
-        'closes':     m_closes,
+        # 일별 시리즈 (SMA/괴리율 차트, 400일 워밍업 이후부터 유효)
+        'dates':      dates,
+        'closes':     closes,
         'divergence': s_div,
         'predicted':  s_pred,
         'position':   s_pos,
         'peak':       s_peak,
 
-        # 일별 시리즈 (현재가 차트, 최근 구간)
-        'daily_dates':  daily_dates,
-        'daily_closes': daily_closes,
-
-        # 거래 기록 (월별 index 기준)
         'trades':        trades,
         'latest_trades': trades[-15:],
 
-        # 현재 상태
         'current': {
             'signal':       sig,
             'msg':          SIG_MSG.get(sig, sig),
             'position':     pos,
-            # 신호 기준 (월말 종가 기반, 백테스트 동일)
-            'divergence':   div,           # 월말 기준 괴리율 (신호 판단)
-            'div_realtime': div_realtime,  # 현재가 기준 실시간 괴리율 (참고용)
-            'close':        latest_close,  # 현재가 (일별 최신)
-            'close_monthly': m_closes[-1], # 월말 종가
-            'predicted':    pred,          # 회귀선 예측가
+            'divergence':   div,           # 400일 SMA 기준 괴리율 (신호 판단, 일별 최신)
+            'close':        latest_close,
+            'predicted':    pred,          # 400일 SMA 값
             'peak':         peak,
-            'date':         latest_date,   # 현재가 기준일
-            'date_monthly': m_dates_actual[-1],  # 월말 기준일
+            'date':         latest_date,
         },
 
         'params': {
             'portfolio':     'SPY40+QQQ20+SGOV40',
-            'signal':        'SPY 60M 롤링 회귀선 괴리율 (월별 리샘플)',
-            'data_freq':     'daily→monthly resample',
-            'reg_win':       REG_WIN,
+            'signal':        'SPY 400일 단순이동평균(SMA) 괴리율 (일별)',
+            'data_freq':     'daily (no resample)',
+            'sma_win':       SMA_WIN,
             'entry_div':     [ENTRY1_DIV, ENTRY2_DIV, ENTRY3_DIV],
             'entry_pct':     [ENTRY1_PCT*100, ENTRY2_PCT*100, '잔액전부(≈16%)'],
             'rebal_full':    REBAL_FULL_THR,
+            'rebal_cooldown':f'{REBAL_COOLDOWN}거래일',
             'rebal_down':    [REBAL_DOWN1_LOSS, REBAL_DOWN2_LOSS, REBAL_DOWN_PCT*100],
             'dca_base':      DCA_BASE,
             'dca_bull':      DCA_BULL,
@@ -352,18 +316,17 @@ def build(ticker, cfg):
 # ── 메인 ─────────────────────────────────────────────────────
 def main():
     print("=" * 65)
-    print("최종 전략 v4 — 일별수집→월별리샘플 | 60M 회귀선")
+    print("최종 전략 v5 — 400일 SMA (일별) | 신호=SPY 400SMA 괴리율")
     print(f"실행: {datetime.utcnow().isoformat()} UTC")
-    print(f"REG={REG_WIN}개월 | 리밸=+{REBAL_FULL_THR}% | DCA동적")
-    print("백테스트와 동일한 월별 기준 신호 계산")
+    print(f"SMA={SMA_WIN}거래일 | 리밸=+{REBAL_FULL_THR}%(쿨다운{REBAL_COOLDOWN}거래일) | DCA동적")
     print("=" * 65)
 
     output = {
         'generated_at': datetime.utcnow().isoformat() + 'Z',
         'strategy': {
-            'name':    'Final v4 — SPY40+QQQ20+SGOV40 | 60M Monthly Resample',
-            'version': 'v4',
-            'note':    '일별 수집 → 월별 리샘플 → 60M 회귀 (백테스트 동일 기준)',
+            'name':    'Final v5 — SPY40+QQQ20+SGOV40 | 400-Day SMA (Daily)',
+            'version': 'v5',
+            'note':    '일별 데이터 그대로 사용, 리샘플링 없음. 400일 SMA 괴리율 기준',
             'portfolio': {'spy': W_SPY, 'qqq': W_QQQ, 'sgov': W_SGOV},
             'dca': {'base': DCA_BASE, 'bull': DCA_BULL, 'div_thr': DCA_DIV_THR},
             'entry': [
@@ -371,11 +334,12 @@ def main():
                 {'level':2,'div':ENTRY2_DIV,'pct':f'{ENTRY2_PCT*100:.0f}%'},
                 {'level':3,'div':ENTRY3_DIV,'pct':'SGOV잔액전부(≈16%)'},
             ],
-            'rebal_full': {'trigger':f'+{REBAL_FULL_THR}% 교차',
+            'rebal_full': {'trigger':f'+{REBAL_FULL_THR}% 교차 (쿨다운{REBAL_COOLDOWN}거래일)',
                            'action':'전술+기본통합→40:20:40→SAFE'},
             'rebal_down': {'t1':REBAL_DOWN1_LOSS,'t2':REBAL_DOWN2_LOSS,
                            'pct':f'{REBAL_DOWN_PCT*100:.0f}%'},
-            'backtest': {'final':1339292,'cagr':6.5,'mdd':49.9,'trades':24},
+            'backtest': {'final':1858102,'cagr':10.4,'mdd':54.4,'trades':46,
+                        'period':'1994-08~2026-07 (22년)'},
         },
         'assets': {},
     }
