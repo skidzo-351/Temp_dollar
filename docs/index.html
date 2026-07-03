@@ -63,6 +63,19 @@ main{max-width:1080px;margin:0 auto;padding:14px 20px 80px}
 .pa-ticker{font-family:var(--mono);font-size:10px;font-weight:700;margin-bottom:4px}
 .pa-shares-row{display:flex;align-items:center;gap:6px;margin-bottom:5px}
 .pa-input{background:var(--bg);border:1px solid var(--b);color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;border-radius:3px;width:80px;outline:none}
+
+/* ── 원화 입금 장부 ── */
+.dep-wrap{background:rgba(0,0,0,.18);border:1px solid var(--b);border-radius:5px;padding:10px 13px;margin:10px 0}
+.dep-head{display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.dep-label{font-family:var(--mono);font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-right:8px}
+.dep-total{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text)}
+.dep-cnt{font-family:var(--mono);font-size:10px;color:var(--dim);margin-left:6px}
+.dep-input-row{display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.dep-btn{background:rgba(61,190,122,.12);border:1px solid rgba(61,190,122,.4);color:var(--green);font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:4px;cursor:pointer}
+.dep-hint{font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:6px}
+.dep-list{margin-top:8px;display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto}
+.dep-item{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11px;padding:5px 8px;background:rgba(255,255,255,.03);border-radius:3px}
+.dep-del{color:var(--red);cursor:pointer;padding:0 5px;font-size:12px;background:none;border:none}
 .pa-input:focus{border-color:var(--blue)}
 .pa-unit{font-family:var(--mono);font-size:10px;color:var(--dim)}
 .pa-value{font-family:var(--mono);font-size:14px;font-weight:700;margin-bottom:3px}
@@ -287,6 +300,27 @@ tr.sim-row td{opacity:.3}
         </div>
       </div>
 
+      <!-- 원화 투자원금 장부 -->
+      <div class="dep-wrap">
+        <div class="dep-head" onclick="toggleDepList()">
+          <div>
+            <span class="dep-label">투자원금 (원화 누적)</span>
+            <span class="dep-total" id="depTotal">₩0</span>
+            <span class="dep-cnt" id="depCnt"></span>
+          </div>
+          <span id="depToggle" style="color:var(--dim);font-size:10px">▼</span>
+        </div>
+        <div class="dep-body" id="depBody" style="display:none">
+          <div class="dep-input-row">
+            <input class="pa-input" type="number" id="inDEP" min="0" step="10" placeholder="금액 (만원)" style="width:110px;font-size:12px;padding:4px 7px">
+            <input class="pa-input" type="date" id="inDEPDATE" style="font-size:11px;padding:4px 7px">
+            <button class="dep-btn" onclick="addDeposit()">+ 입금 추가</button>
+          </div>
+          <div class="dep-hint">환전·입금한 원화 금액을 기록하면 원금에 누적됩니다 (만원 단위)</div>
+          <div class="dep-list" id="depList"></div>
+        </div>
+      </div>
+
       <!-- 비중 시각화 바 -->
       <div class="alloc-bar-wrap">
         <div class="alloc-bar" id="allocBar">
@@ -389,7 +423,7 @@ tr.sim-row td{opacity:.3}
       <!-- 원화 환산 -->
       <div class="krw-row" id="krwRow" style="display:none">
         <div class="krw-item">
-          <dt>초기 투자금 (원화)</dt>
+          <dt id="krwInitLabel">초기 투자금 (원화)</dt>
           <dd id="krwInit" style="color:var(--dim)">—</dd>
         </div>
         <div class="krw-item">
@@ -447,6 +481,7 @@ const LS = {
   start: 'sgov_start_date',
   port:  'sgov_portfolio',      // {spy, qqq, sgov, cash, init}
   fx:    'sgov_fx_cache',       // {rate, prev, time}
+  dep:   'sgov_deposits',       // [{d:'YYYY-MM-DD', w:원화금액}] 입금 장부
 };
 const COMM = 0.005;
 let FX_RATE = 0; // 현재 USD/KRW (0=미로드)
@@ -567,6 +602,52 @@ function renderFX(rate, prev, time){
   updateKRW();
 }
 
+/* ── 원화 입금 장부 ── */
+function getDeposits(){ try{ return JSON.parse(localStorage.getItem(LS.dep)||'[]'); }catch(e){ return []; } }
+function depositTotal(){ return getDeposits().reduce((s,d)=>s+(d.w||0),0); }
+function addDeposit(){
+  const manwon = parseFloat(document.getElementById('inDEP').value)||0;
+  if(manwon<=0){ return; }
+  const dEl = document.getElementById('inDEPDATE');
+  const date = dEl.value || new Date().toISOString().slice(0,10);
+  const deps = getDeposits();
+  deps.push({d:date, w:Math.round(manwon*10000)});
+  deps.sort((a,b)=>a.d<b.d?-1:1);
+  localStorage.setItem(LS.dep, JSON.stringify(deps));
+  document.getElementById('inDEP').value='';
+  renderDeposits(); updateKRW();
+}
+function removeDeposit(idx){
+  const deps = getDeposits();
+  deps.splice(idx,1);
+  localStorage.setItem(LS.dep, JSON.stringify(deps));
+  renderDeposits(); updateKRW();
+}
+function toggleDepList(){
+  const b=document.getElementById('depBody');
+  const hidden = b.style.display==='none';
+  b.style.display = hidden?'':'none';
+  document.getElementById('depToggle').textContent = hidden?'▲':'▼';
+}
+function renderDeposits(){
+  const deps = getDeposits();
+  const total = depositTotal();
+  const kf = v => {
+    const abs=Math.abs(Math.round(v)); const s=v<0?'-':'';
+    if(abs>=100000000) return s+'₩'+(abs/100000000).toFixed(2)+'억';
+    if(abs>=10000)     return s+'₩'+(abs/10000).toLocaleString(undefined,{maximumFractionDigits:0})+'만';
+    return s+'₩'+abs.toLocaleString();
+  };
+  document.getElementById('depTotal').textContent = kf(total);
+  document.getElementById('depCnt').textContent = deps.length?`(입금 ${deps.length}회)`:'';
+  document.getElementById('depList').innerHTML = deps.map((d,i)=>`
+    <div class="dep-item">
+      <span style="color:var(--dim)">${d.d}</span>
+      <span style="flex:1;text-align:right;margin-right:8px">${kf(d.w)}</span>
+      <button class="dep-del" onclick="event.stopPropagation();removeDeposit(${i})">✕</button>
+    </div>`).join('');
+}
+
 function updateKRW(){
   if(!FX_RATE) return;
   const spy  = D?.assets?.SPY?.current?.close || 0;
@@ -580,6 +661,12 @@ function updateKRW(){
   const total = nSPY*spy + nQQQ*qqq + nSGOV*sgov + cash;
   const pnlUSD = init>0 ? total-init : 0;
 
+  // 원화 장부 (환차손익 포함 실질 손익)
+  const depKRW = depositTotal();
+  const totalKRW = total*FX_RATE;
+  const useLedger = depKRW>0 && total>0;
+  const pnlKRW_real = useLedger ? totalKRW-depKRW : pnlUSD*FX_RATE;
+
   const krwFmt = v => {
     const abs = Math.abs(Math.round(v));
     const s = v<0?'-':'';
@@ -589,25 +676,24 @@ function updateKRW(){
   };
 
   // 배너 업데이트
-  document.getElementById('fxKRW').textContent  = total>0 ? krwFmt(total*FX_RATE) : '—';
+  document.getElementById('fxKRW').textContent  = total>0 ? krwFmt(totalKRW) : '—';
   const pnlKRWEl = document.getElementById('fxPnLKRW');
-  if(init>0 && total>0){
-    const pnlKRW = pnlUSD*FX_RATE;
-    pnlKRWEl.textContent = (pnlKRW>=0?'+':'')+krwFmt(pnlKRW);
-    pnlKRWEl.style.color = pnlKRW>=0?'var(--green)':'var(--red)';
+  if((useLedger || init>0) && total>0){
+    pnlKRWEl.textContent = (pnlKRW_real>=0?'+':'')+krwFmt(pnlKRW_real);
+    pnlKRWEl.style.color = pnlKRW_real>=0?'var(--green)':'var(--red)';
   } else {
     pnlKRWEl.textContent='—';
     pnlKRWEl.style.color='var(--dim)';
   }
 
   // 수익률 섹션 원화 행
-  if(init>0 && total>0){
-    document.getElementById('krwInit').textContent  = krwFmt(init*FX_RATE);
-    document.getElementById('krwTotal').textContent = krwFmt(total*FX_RATE);
-    const pnlKRW = pnlUSD*FX_RATE;
+  if((useLedger || init>0) && total>0){
+    document.getElementById('krwInit').textContent  = useLedger ? krwFmt(depKRW) : krwFmt(init*FX_RATE);
+    document.getElementById('krwInitLabel').textContent = useLedger ? '누적 원금 (원화 장부)' : '초기 투자금 (원화)';
+    document.getElementById('krwTotal').textContent = krwFmt(totalKRW);
     const krwPnLEl = document.getElementById('krwPnL');
-    krwPnLEl.textContent = (pnlKRW>=0?'+':'')+krwFmt(pnlKRW);
-    krwPnLEl.style.color = pnlKRW>=0?'var(--green)':'var(--red)';
+    krwPnLEl.textContent = (pnlKRW_real>=0?'+':'')+krwFmt(pnlKRW_real);
+    krwPnLEl.style.color = pnlKRW_real>=0?'var(--green)':'var(--red)';
     document.getElementById('krwRow').style.display='';
   } else {
     document.getElementById('krwRow').style.display='none';
@@ -1186,6 +1272,7 @@ async function init(){
     document.getElementById('app').style.display='block';
     updateStartBanner();
     loadPortInputs();
+    renderDeposits();
     renderAll();
     loadFX();
     // 30분마다 환율 자동 갱신
