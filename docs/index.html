@@ -188,7 +188,7 @@ tr.sim-row td{opacity:.3}
     <span class="ba">진입 -5/-10/-15% | 청산없음 → 통합리밸</span>
     <span class="bb">400일 SMA (일별)</span>
     <span class="bp">완전 리밸 동적18~25% | 하락 리밸 평단-20%/-40%</span>
-    <span class="bg" style="opacity:.7">백테스트 $2,620,350 | CAGR 12.1% | MDD 55.3% (22년)</span>
+    <span class="bg" style="opacity:.7">백테스트 CAGR 12.4% | MDD 52.8% (22년, v7 3단계 DCA)</span>
   </div>
 </header>
 
@@ -839,6 +839,7 @@ function renderSignal(){
         <div class="sc-div-num" style="color:${divColor(div)}">${div!=null?fp(div,true):'—'}</div>
         <div class="sc-div-label">괴리율 (400일 SMA, 일별)</div>
         ${rthr!=null?`<div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:2px">현재 리밸 트리거: +${rthr.toFixed(1)}%</div>`:''}
+        ${c.dca_tier?`<div style="font-family:var(--mono);font-size:9px;margin-top:2px;color:${c.dca_tier==='bull'?'var(--green)':c.dca_tier==='cool'?'var(--amber)':'var(--dim)'}">이번 달 DCA: ${c.dca_tier==='bull'?'확대 $750':c.dca_tier==='cool'?'축소 $300':'기본 $500'}</div>`:''}
       </div>
       <div class="sc-right">
         <div class="sc-item"><dt>신호</dt><dd style="color:${col}">${SIG_MSG[sig]||sig}</dd></div>
@@ -892,7 +893,7 @@ function renderExecGuide(){
       {t:'SPY',  d:`매수 (2/3 비중)`,               q:`+${buySpySh.toFixed(3)}주`, neg:false},
       {t:'QQQ',  d:`매수 (1/3 비중)`,               q:`+${buyQqqSh.toFixed(3)}주`, neg:false},
     ];
-    note=`투입액 = 순자산×${sig==='ENTRY3_READY'?'SGOV 잔액 전부':'12%'} (SGOV 보유액 한도 내)<br>수수료 0.5% 별도 — 실제 체결가 기준으로 재계산 권장`;
+    note=`투입액 = 순자산×${sig==='ENTRY3_READY'?'SGOV 잔액 전부':'12%'} (SGOV 보유액 한도 내)<br>SPY/QQQ 매수 시에만 수수료 0.5% 부과 (SGOV 매도는 수수료 없음) — 실제 체결가 기준으로 재계산 권장`;
 
   }else if(sig==='REBAL_FULL_READY'){
     // 전술+기본 통합 후 40:20:40 재분배 — 목표 대비 현재 비중 차이만큼 매매
@@ -905,7 +906,7 @@ function renderExecGuide(){
       {t:'QQQ',  d:'목표 20%로 조정', q:`${shQQQ>=0?'+':''}${shQQQ.toFixed(3)}주`, neg:shQQQ<0},
       {t:'SGOV', d:'목표 40%로 조정', q:`${shSGOV>=0?'+':''}${shSGOV.toFixed(3)}주`, neg:shSGOV<0},
     ];
-    note='전술 포지션 전체를 기본 포지션에 통합한 뒤 40:20:40 비중으로 재분배<br>+ 표시는 매수, − 표시는 매도';
+    note='전술 포지션 전체를 기본 포지션에 통합한 뒤 40:20:40 비중으로 재분배<br>+ 표시는 매수(수수료 0.5%), − 표시는 매도(수수료 없음)';
 
   }else if(sig==='REBAL_DOWN1_READY'||sig==='REBAL_DOWN2_READY'){
     const invest = netTotal*0.25;
@@ -1124,7 +1125,7 @@ function renderParams(){
     <div class="param-box">
       <div class="pb-title">포트폴리오</div>
       <div class="pb-row"><span class="pb-key">기본 비중</span><span class="pb-val pos">SPY 40% · QQQ 20% · SGOV 40%</span></div>
-      <div class="pb-row"><span class="pb-key">월 DCA (기본)</span><span class="pb-val">SPY $200 · QQQ $100 · SGOV $200</span></div><div class="pb-row"><span class="pb-key">월 DCA (저평가 괴리율&lt;-3%)</span><span class="pb-val pos">SPY $250 · QQQ $125 · SGOV $125</span></div>
+      <div class="pb-row"><span class="pb-key">월 DCA 확대 (괴리율&lt;-3%)</span><span class="pb-val pos">$750 — SPY $375 · QQQ $188 · SGOV $187</span></div><div class="pb-row"><span class="pb-key">월 DCA 기본 (-3%~+10%)</span><span class="pb-val">$500 — SPY $200 · QQQ $100 · SGOV $200</span></div><div class="pb-row"><span class="pb-key">월 DCA 축소 (괴리율&gt;+10%)</span><span class="pb-val" style="color:var(--amber)">$300 — SPY $120 · QQQ $60 · SGOV $120</span></div>
       <div class="pb-row"><span class="pb-key">신호</span><span class="pb-val">SPY 400일 SMA 괴리율 (일별)</span></div>
       <div class="pb-row"><span class="pb-key">1차 진입 (-5%)</span><span class="pb-val">SGOV×12% → 2:1</span></div>
       <div class="pb-row"><span class="pb-key">2차 진입 (-10%)</span><span class="pb-val">SGOV×12% → 2:1</span></div>
