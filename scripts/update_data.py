@@ -1,24 +1,31 @@
 #!/usr/bin/env python3
 """
-최종 전략 v5 — 400일 SMA 기반 일간 신호 계산 스크립트
+최종 전략 v7 — 400일 SMA 기반 일간 신호 계산 스크립트
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 데이터:    일별 수집 → 일별 그대로 사용 (리샘플링 없음)
 신호:      SPY 400일 단순이동평균(SMA) 괴리율
 
 포트폴리오: SPY 40% + QQQ 20% + SGOV 40%
 
-월 DCA (동적, 매월 첫 거래일):
-  괴리율(전일 기준) ≥ -3%  →  SPY $200 + QQQ $100 + SGOV $200
-  괴리율(전일 기준) < -3%  →  SPY $250 + QQQ $125 + SGOV $125
+월 DCA (3단계 총액 동적, 매월 첫 거래일, 전일 괴리율 기준):
+  괴리율 < -3%    →  $750 (SPY $375 + QQQ $188 + SGOV $187)  저평가 확대
+  -3% ~ +10%      →  $500 (SPY $200 + QQQ $100 + SGOV $200)  기본
+  괴리율 > +10%   →  $300 (SPY $120 + QQQ $60  + SGOV $120)  고평가 축소
+  ※ 축소분은 원화 단기자금으로 대기 (강제 아님, 다른 곳에 써도 무방)
 
 진입:  1차(-5%) / 2차(-10%) / 3차(-15%)
-리밸:  +15% 교차 → 전술+기본 통합 → 40:20:40 → SAFE
-       (쿨다운 60거래일: 재발동까지 최소 60거래일 대기 — SMA 노이즈로 인한 과매매 방지)
+리밸:  동적 트리거 18~25% 교차 → 전술+기본 통합 → 40:20:40 → SAFE
+       트리거 = 25 - (SMA 60일변화율/10)×(25-18), [18,25] 클리핑
+       (변화율 클수록=급등직후 → 낮은 트리거로 빨리 실현 /
+        변화율 작을수록=완만한 상승 → 높은 트리거로 오래 보유)
+       (쿨다운 60거래일: 재발동까지 최소 60거래일 대기 — SMA 노이즈 과매매 방지)
 하락:  평단 -20%/-40% → 외부현금 25%+25%
+수수료: 매수 시에만 0.5% (왕복분 선반영), 매도 시 0%
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-백테스트(1994-08~2026-07, 22년): $1,858,102 | CAGR 10.4% | MDD 54.4%
-  (SPY40:QQQ20:SGOV40 | 진입17회 | 리밸29회 | 쿨다운3개월)
-  ※ 60M(월별) 방식 대비 CAGR +3.9%p 높으나 MDD +4.5%p, 거래빈도 2.4배
+백테스트(1994-08~2026-07, 22년, $20K+3단계DCA): $2,481,104 (투입 $191,200)
+  CAGR 12.37% | MDD 52.8% | 진입7회 | 리밸17회 | 하락리밸2회 | 수수료 $4,419
+  ※ v6(고정$500) 대비 CAGR +0.23%p, MDD -2.5%p, 정규화(동일투입) +$116,140
+  ※ 검증: 워크포워드(인/아웃샘플 일관 개선) + 위기제외 평온구간 5/5 승리
 """
 import json, os, urllib.request, time
 from datetime import datetime
@@ -43,9 +50,15 @@ REBAL_MOM_WIN   = 60       # 변화율 측정 기간(거래일)
 REBAL_THR_LO    = 18.0     # 트리거 하한
 REBAL_THR_HI    = 25.0     # 트리거 상한
 REBAL_NORM      = 10.0     # 정규화 상수 (변화율 10%를 만점 기준으로)
-DCA_DIV_THR     = -3.0
-DCA_BASE = {'spy': 200, 'qqq': 100, 'sgov': 200}
-DCA_BULL = {'spy': 250, 'qqq': 125, 'sgov': 125}
+# DCA 3단계 (v7): 전일 괴리율 기준 총액+비중 동적 조정
+#   괴리율 < -3%   → 총액 $750, 비중 50:25:25 (저평가 확대)
+#   -3% ~ +10%     → 총액 $500, 비중 40:20:40 (기본)
+#   > +10%         → 총액 $300, 비중 40:20:40 (고평가 축소)
+DCA_BULL_THR    = -3.0    # 이하이면 확대
+DCA_COOL_THR    = +10.0   # 초과이면 축소
+DCA_BULL = {'spy': 375, 'qqq': 188, 'sgov': 187}   # $750
+DCA_BASE = {'spy': 200, 'qqq': 100, 'sgov': 200}   # $500
+DCA_COOL = {'spy': 120, 'qqq':  60, 'sgov': 120}   # $300
 
 REBAL_DOWN_PCT   = 0.25
 REBAL_DOWN1_LOSS = -20.0
@@ -360,6 +373,10 @@ def build(ticker, cfg):
             'predicted':    pred,          # 400일 SMA 값
             'peak':         peak,
             'rebal_thr':    rebal_thr,     # 현재 시점 동적 리밸 트리거(18~25%)
+            'dca_tier':     ('bull' if div is not None and div < DCA_BULL_THR else
+                             'cool' if div is not None and div > DCA_COOL_THR else 'base'),
+            'dca_amounts':  (DCA_BULL if div is not None and div < DCA_BULL_THR else
+                             DCA_COOL if div is not None and div > DCA_COOL_THR else DCA_BASE),
             'es':           es,            # 진입 단계 (0~3)
             'rs':           rs,            # 하락리밸 단계 (0~2)
             'spy_avg':      spy_avg,       # 전술 포지션 SPY 평단가
@@ -378,30 +395,38 @@ def build(ticker, cfg):
                               'mom_win':REBAL_MOM_WIN, 'norm':REBAL_NORM},
             'rebal_cooldown':f'{REBAL_COOLDOWN}거래일',
             'rebal_down':    [REBAL_DOWN1_LOSS, REBAL_DOWN2_LOSS, REBAL_DOWN_PCT*100],
-            'dca_base':      DCA_BASE,
-            'dca_bull':      DCA_BULL,
-            'dca_div_thr':   DCA_DIV_THR,
+            'dca_mode':      '3-tier (v7)',
+            'dca_bull':      {'thr':f'괴리율<{DCA_BULL_THR}%', 'total':750, **DCA_BULL},
+            'dca_base':      {'thr':f'{DCA_BULL_THR}%~+{DCA_COOL_THR}%', 'total':500, **DCA_BASE},
+            'dca_cool':      {'thr':f'괴리율>+{DCA_COOL_THR}%', 'total':300, **DCA_COOL},
         },
     }
 
 # ── 메인 ─────────────────────────────────────────────────────
 def main():
     print("=" * 65)
-    print("최종 전략 v5 — 400일 SMA (일별) | 신호=SPY 400SMA 괴리율")
+    print("최종 전략 v7 — 400일 SMA (일별) | 신호=SPY 400SMA 괴리율")
     print(f"실행: {datetime.utcnow().isoformat()} UTC")
     print(f"SMA={SMA_WIN}거래일 | 리밸=동적{REBAL_THR_LO}~{REBAL_THR_HI}%"
-          f"(SMA{REBAL_MOM_WIN}일변화율연동,쿨다운{REBAL_COOLDOWN}거래일) | DCA동적")
+          f"(SMA{REBAL_MOM_WIN}일변화율연동,쿨다운{REBAL_COOLDOWN}거래일) | DCA 3단계($300/500/750)")
     print("=" * 65)
 
     output = {
         'generated_at': datetime.utcnow().isoformat() + 'Z',
         'strategy': {
-            'name':    'Final v6 — SPY40+QQQ20+SGOV40 | 400-Day SMA + Dynamic Rebal (Daily)',
-            'version': 'v6',
+            'name':    'Final v7 — SPY40+QQQ20+SGOV40 | 400-Day SMA + Dynamic Rebal + 3-Tier DCA (Daily)',
+            'version': 'v7',
             'note':    '일별 데이터 그대로 사용. 400일 SMA 괴리율 기준, '
-                       '리밸 트리거는 SMA 60일 변화율에 역방향 연동(18~25%)',
+                       '리밸 트리거는 SMA 60일 변화율에 역방향 연동(18~25%), '
+                       'DCA는 괴리율 3단계 총액 동적($300/$500/$750)',
             'portfolio': {'spy': W_SPY, 'qqq': W_QQQ, 'sgov': W_SGOV},
-            'dca': {'base': DCA_BASE, 'bull': DCA_BULL, 'div_thr': DCA_DIV_THR},
+            'dca': {
+                'mode': '3-tier',
+                'bull': {'thr': f'괴리율 < {DCA_BULL_THR}%', 'total': 750, 'alloc': DCA_BULL},
+                'base': {'thr': f'{DCA_BULL_THR}% ~ +{DCA_COOL_THR}%', 'total': 500, 'alloc': DCA_BASE},
+                'cool': {'thr': f'괴리율 > +{DCA_COOL_THR}%', 'total': 300, 'alloc': DCA_COOL},
+                'note': '전일 괴리율 기준, 매월 첫 거래일 집행. 축소분은 원화 단기자금으로 대기',
+            },
             'entry': [
                 {'level':1,'div':ENTRY1_DIV,'pct':f'{ENTRY1_PCT*100:.0f}%'},
                 {'level':2,'div':ENTRY2_DIV,'pct':f'{ENTRY2_PCT*100:.0f}%'},
@@ -417,9 +442,12 @@ def main():
             },
             'rebal_down': {'t1':REBAL_DOWN1_LOSS,'t2':REBAL_DOWN2_LOSS,
                            'pct':f'{REBAL_DOWN_PCT*100:.0f}%'},
-            'backtest': {'final':2620350,'cagr':12.13,'mdd':55.3,'trades':17,
+            'backtest': {'final':2481104,'invested':191200,'cagr':12.37,'mdd':52.8,
+                        'normalized_final':2744527,
+                        'commission':4419,
                         'period':'1994-08~2026-07 (22년)',
-                        'note':'고정+20% 대비 CAGR+1.1%p, MDD 거의동일, 리밸-3회'},
+                        'note':'수수료 매수시에만 0.5%. DCA 3단계: v6 대비 CAGR +0.23%p, MDD -2.5%p, '
+                               '정규화(동일투입) +$116,140. 워크포워드·위기제외 5/5구간 검증 통과'},
         },
         'assets': {},
     }
