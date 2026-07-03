@@ -286,14 +286,6 @@ tr.sim-row td{opacity:.3}
         </div>
         <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap">
           <div style="text-align:right">
-            <div class="port-total-label">초기 투자금 (수수료 포함)</div>
-            <div style="display:flex;align-items:center;gap:5px;justify-content:flex-end;margin-top:3px">
-              <span style="font-family:var(--mono);font-size:13px;color:var(--dim)">$</span>
-              <input class="pa-input" type="number" id="inINIT" min="0" step="100" placeholder="0" oninput="calcPort()" style="width:110px;font-size:13px;padding:4px 7px">
-            </div>
-            <div style="font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:2px">매수 시 수수료 0.5% 반영</div>
-          </div>
-          <div style="text-align:right">
             <div class="port-total-label">현재 총 평가금</div>
             <div class="port-total" id="portTotal">$0</div>
           </div>
@@ -401,38 +393,23 @@ tr.sim-row td{opacity:.3}
       <!-- 비중 요약 메시지 -->
       <div id="allocMsg" style="font-family:var(--mono);font-size:11px;color:var(--dim);padding:4px 2px"></div>
 
-      <!-- 수익률 요약 -->
-      <div class="returns-grid" id="returnsGrid" style="display:none">
-        <div class="ret-item">
-          <dt>총 손익 (USD)</dt>
-          <dd id="retPnL">$—</dd>
-        </div>
-        <div class="ret-item">
-          <dt>수익률</dt>
-          <dd id="retPct">—%</dd>
-        </div>
-        <div class="ret-item">
-          <dt>초기 투자금</dt>
-          <dd id="retInit" style="color:var(--dim)">$—</dd>
-        </div>
-        <div class="ret-item">
-          <dt>현재 평가금</dt>
-          <dd id="retDiff" style="font-size:13px">$—</dd>
-        </div>
-      </div>
-      <!-- 원화 환산 -->
-      <div class="krw-row" id="krwRow" style="display:none">
+      <!-- 수익 요약 (원화 기준) -->
+      <div class="krw-row" id="krwRow" style="display:none;grid-template-columns:repeat(4,1fr)">
         <div class="krw-item">
-          <dt id="krwInitLabel">초기 투자금 (원화)</dt>
+          <dt>누적 원금</dt>
           <dd id="krwInit" style="color:var(--dim)">—</dd>
         </div>
         <div class="krw-item">
-          <dt>현재 평가금 (원화)</dt>
+          <dt>현재 평가금</dt>
           <dd id="krwTotal">—</dd>
         </div>
         <div class="krw-item">
-          <dt>손익 (원화)</dt>
+          <dt>손익</dt>
           <dd id="krwPnL">—</dd>
+        </div>
+        <div class="krw-item">
+          <dt>수익률</dt>
+          <dd id="krwPct">—</dd>
         </div>
       </div>
     </div>
@@ -657,15 +634,14 @@ function updateKRW(){
   const nQQQ  = parseFloat(document.getElementById('inQQQ').value)||0;
   const nSGOV = parseFloat(document.getElementById('inSGOV').value)||0;
   const cash  = parseFloat(document.getElementById('inCASH').value)||0;
-  const init  = parseFloat(document.getElementById('inINIT').value)||0;
   const total = nSPY*spy + nQQQ*qqq + nSGOV*sgov + cash;
-  const pnlUSD = init>0 ? total-init : 0;
 
-  // 원화 장부 (환차손익 포함 실질 손익)
+  // 원화 장부 기준 (환차손익 포함 실질 손익) — 단일 축
   const depKRW = depositTotal();
   const totalKRW = total*FX_RATE;
   const useLedger = depKRW>0 && total>0;
-  const pnlKRW_real = useLedger ? totalKRW-depKRW : pnlUSD*FX_RATE;
+  const pnlKRW = useLedger ? totalKRW-depKRW : 0;
+  const pnlPct = useLedger ? pnlKRW/depKRW*100 : 0;
 
   const krwFmt = v => {
     const abs = Math.abs(Math.round(v));
@@ -678,22 +654,24 @@ function updateKRW(){
   // 배너 업데이트
   document.getElementById('fxKRW').textContent  = total>0 ? krwFmt(totalKRW) : '—';
   const pnlKRWEl = document.getElementById('fxPnLKRW');
-  if((useLedger || init>0) && total>0){
-    pnlKRWEl.textContent = (pnlKRW_real>=0?'+':'')+krwFmt(pnlKRW_real);
-    pnlKRWEl.style.color = pnlKRW_real>=0?'var(--green)':'var(--red)';
+  if(useLedger){
+    pnlKRWEl.textContent = (pnlKRW>=0?'+':'')+krwFmt(pnlKRW);
+    pnlKRWEl.style.color = pnlKRW>=0?'var(--green)':'var(--red)';
   } else {
     pnlKRWEl.textContent='—';
     pnlKRWEl.style.color='var(--dim)';
   }
 
-  // 수익률 섹션 원화 행
-  if((useLedger || init>0) && total>0){
-    document.getElementById('krwInit').textContent  = useLedger ? krwFmt(depKRW) : krwFmt(init*FX_RATE);
-    document.getElementById('krwInitLabel').textContent = useLedger ? '누적 원금 (원화 장부)' : '초기 투자금 (원화)';
+  // 수익 요약 그리드 (원화 기준)
+  if(useLedger){
+    document.getElementById('krwInit').textContent  = krwFmt(depKRW);
     document.getElementById('krwTotal').textContent = krwFmt(totalKRW);
     const krwPnLEl = document.getElementById('krwPnL');
-    krwPnLEl.textContent = (pnlKRW_real>=0?'+':'')+krwFmt(pnlKRW_real);
-    krwPnLEl.style.color = pnlKRW_real>=0?'var(--green)':'var(--red)';
+    krwPnLEl.textContent = (pnlKRW>=0?'+':'')+krwFmt(pnlKRW);
+    krwPnLEl.style.color = pnlKRW>=0?'var(--green)':'var(--red)';
+    const krwPctEl = document.getElementById('krwPct');
+    krwPctEl.textContent = (pnlPct>=0?'+':'')+pnlPct.toFixed(2)+'%';
+    krwPctEl.style.color = pnlPct>=0?'var(--green)':'var(--red)';
     document.getElementById('krwRow').style.display='';
   } else {
     document.getElementById('krwRow').style.display='none';
@@ -708,7 +686,6 @@ function savePort(){
     qqq:  parseFloat(document.getElementById('inQQQ').value)||0,
     sgov: parseFloat(document.getElementById('inSGOV').value)||0,
     cash: parseFloat(document.getElementById('inCASH').value)||0,
-    init: parseFloat(document.getElementById('inINIT').value)||0,
   }));
 }
 function loadPortInputs(){
@@ -717,7 +694,6 @@ function loadPortInputs(){
   document.getElementById('inQQQ').value  = p.qqq  ||'';
   document.getElementById('inSGOV').value = p.sgov ||'';
   document.getElementById('inCASH').value = p.cash ||'';
-  document.getElementById('inINIT').value = p.init ||'';
 }
 
 function calcPort(){
@@ -793,29 +769,7 @@ function calcPort(){
   document.getElementById('barSGOV').textContent = pSGOV>5 ? pSGOV.toFixed(0)+'%':'';
   document.getElementById('barCASH').textContent = pCASH>5 ? pCASH.toFixed(0)+'%':'';
 
-  // 수익률 계산
-  const initVal = parseFloat(document.getElementById('inINIT').value)||0;
-  const rGrid   = document.getElementById('returnsGrid');
-  if(initVal > 0 && total > 0){
-    // 실제 수익 = 현재 평가금 - 초기 투자금(수수료 포함 이미 반영된 금액)
-    const pnl     = total - initVal;
-    const pnlPct  = pnl / initVal * 100;
-    // 수수료 환산: 초기 투자금에서 0.5% 수수료가 이미 나간 것으로 가정
-    // 순 매수원금 = initVal / (1 + COMM)
-    const netCost = initVal / (1 + COMM);
-    const commPaid = initVal - netCost;
-
-    document.getElementById('retPnL').textContent  = (pnl>=0?'+':'')+fmt(pnl);
-    document.getElementById('retPnL').style.color  = pnl>=0?'var(--green)':'var(--red)';
-    document.getElementById('retPct').textContent  = (pnlPct>=0?'+':'')+pnlPct.toFixed(2)+'%';
-    document.getElementById('retPct').style.color  = pnlPct>=0?'var(--green)':'var(--red)';
-    document.getElementById('retInit').textContent = fmt(initVal);
-    document.getElementById('retDiff').textContent = (pnl>=0?'+':'')+fmt(pnl);
-    document.getElementById('retDiff').style.color = pnl>=0?'var(--green)':'var(--red)';
-    rGrid.style.display='';
-  } else {
-    rGrid.style.display='none';
-  }
+  // 수익 요약은 원화 장부 기준으로 updateKRW()에서 처리
 
   // 요약 메시지
   const msgs = [];
