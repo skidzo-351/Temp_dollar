@@ -131,6 +131,34 @@ def fetch_daily(symbol_s, symbol_y, days=9000):
         return d
     return []
 
+# DCA 실행용 티커 (신호 계산 X, 최신 종가만 수집)
+QUOTE_TICKERS = {
+    'SPYM': {'stooq': 'spym.us', 'yahoo': 'SPYM', 'name': 'S&P500 저가판 (구 SPLG)'},
+    'QQQM': {'stooq': 'qqqm.us', 'yahoo': 'QQQM', 'name': '나스닥100 저가판'},
+    'SGOV': {'stooq': 'sgov.us', 'yahoo': 'SGOV', 'name': '초단기 국채'},
+}
+
+def fetch_quote(symbol_s, symbol_y):
+    """최신 종가 1개만 (stooq → yahoo 순)"""
+    d = fetch_stooq_daily(symbol_s, days=30)
+    if not d:
+        d = fetch_yahoo_daily(symbol_y, days=30)
+    if d:
+        return {'close': d[-1]['close'], 'date': d[-1]['date']}
+    return None
+
+def fetch_all_quotes():
+    quotes = {}
+    for tk, cfg in QUOTE_TICKERS.items():
+        q = fetch_quote(cfg['stooq'], cfg['yahoo'])
+        if q:
+            quotes[tk] = q
+            print(f"  ✓ {tk}: ${q['close']} ({q['date']})")
+        else:
+            print(f"  ⚠ {tk}: 시세 수집 실패 (프론트에서 근사치 사용)")
+        time.sleep(0.5)
+    return quotes
+
 # ── 400일 SMA 신호 계산 (일별 데이터 그대로) ──────────────────
 def calc_sma(closes, i, win):
     if i < win: return None
@@ -461,6 +489,10 @@ def main():
         if result:
             output['assets'][ticker] = result
         time.sleep(1)
+
+    # DCA 실행용 티커 최신 시세 (SPYM/QQQM/SGOV)
+    print("\nDCA 티커 시세 수집:")
+    output['quotes'] = fetch_all_quotes()
 
     if not output['assets']:
         print("\n❌ 수집 실패 — 기존 data.json 유지")
