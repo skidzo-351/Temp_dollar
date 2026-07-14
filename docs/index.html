@@ -63,6 +63,31 @@ main{max-width:1080px;margin:0 auto;padding:14px 20px 80px}
 .pa-ticker{font-family:var(--mono);font-size:10px;font-weight:700;margin-bottom:4px}
 .pa-shares-row{display:flex;align-items:center;gap:6px;margin-bottom:5px}
 .pa-input{background:var(--bg);border:1px solid var(--b);color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;border-radius:3px;width:80px;outline:none}
+.pa-sub-tk{font-family:var(--mono);font-size:9px;font-weight:700;width:38px;flex-shrink:0}
+
+/* ── 시세 헬퍼 (SPYM/QQQM/SGOV는 data.json quotes, 실패 시 근사치) ── */
+function getPx(){
+  const spy = D?.assets?.SPY?.current?.close || 0;
+  const qqq = D?.assets?.QQQ?.current?.close || 0;
+  const q = D?.quotes || {};
+  return {
+    SPY: spy, QQQ: qqq,
+    SPYM: q.SPYM?.close || (spy ? spy/8.8  : 0),   // SPY의 약 1/8.8
+    QQQM: q.QQQM?.close || (qqq ? qqq/2.46 : 0),   // QQQ의 약 1/2.46
+    SGOV: q.SGOV?.close || 100.62,
+  };
+}
+function getSections(){
+  const px = getPx();
+  const g = id => parseFloat(document.getElementById(id)?.value)||0;
+  const nSPY=g('inSPY'), nSPYM=g('inSPYM'), nQQQ=g('inQQQ'), nQQQM=g('inQQQM');
+  const nSGOV=g('inSGOV'), cash=g('inCASH');
+  const vSPY  = nSPY*px.SPY + nSPYM*px.SPYM;   // SPY 섹션 = SPY + SPYM
+  const vQQQ  = nQQQ*px.QQQ + nQQQM*px.QQQM;   // QQQ 섹션 = QQQ + QQQM
+  const vSGOV = nSGOV*px.SGOV;
+  return {px, nSPY, nSPYM, nQQQ, nQQQM, nSGOV, cash,
+          vSPY, vQQQ, vSGOV, total: vSPY+vQQQ+vSGOV+cash};
+}
 
 /* ── 원화 입금 장부 ── */
 .dep-wrap{background:rgba(0,0,0,.18);border:1px solid var(--b);border-radius:5px;padding:10px 13px;margin:10px 0}
@@ -330,13 +355,19 @@ tr.sim-row td{opacity:.3}
         </div>
       </div>
 
-      <!-- 자산별 수량 입력 -->
+      <!-- 자산별 수량 입력 (섹션: 본체 + DCA용 저가판 합산) -->
       <div class="port-grid">
-        <!-- SPY -->
+        <!-- SPY 섹션 -->
         <div class="port-asset" style="border-left:3px solid #4a8fe8">
-          <div class="pa-ticker" style="color:#4a8fe8">SPY</div>
+          <div class="pa-ticker" style="color:#4a8fe8">SPY 섹션</div>
           <div class="pa-shares-row">
+            <span class="pa-sub-tk" style="color:#4a8fe8">SPY</span>
             <input class="pa-input" type="number" id="inSPY" min="0" step="0.001" placeholder="0" oninput="calcPort()">
+            <span class="pa-unit">주</span>
+          </div>
+          <div class="pa-shares-row">
+            <span class="pa-sub-tk" style="color:#7ba7ec">SPYM</span>
+            <input class="pa-input" type="number" id="inSPYM" min="0" step="0.001" placeholder="0" oninput="calcPort()">
             <span class="pa-unit">주</span>
           </div>
           <div class="pa-value" id="valSPY">$—</div>
@@ -346,11 +377,17 @@ tr.sim-row td{opacity:.3}
           </div>
           <div class="pa-bar-wrap"><div class="pa-bar" id="barsSPY" style="background:#4a8fe8;width:0%"></div></div>
         </div>
-        <!-- QQQ -->
+        <!-- QQQ 섹션 -->
         <div class="port-asset" style="border-left:3px solid #a87ef5">
-          <div class="pa-ticker" style="color:#a87ef5">QQQ</div>
+          <div class="pa-ticker" style="color:#a87ef5">QQQ 섹션</div>
           <div class="pa-shares-row">
+            <span class="pa-sub-tk" style="color:#a87ef5">QQQ</span>
             <input class="pa-input" type="number" id="inQQQ" min="0" step="0.001" placeholder="0" oninput="calcPort()">
+            <span class="pa-unit">주</span>
+          </div>
+          <div class="pa-shares-row">
+            <span class="pa-sub-tk" style="color:#c3a5f8">QQQM</span>
+            <input class="pa-input" type="number" id="inQQQM" min="0" step="0.001" placeholder="0" oninput="calcPort()">
             <span class="pa-unit">주</span>
           </div>
           <div class="pa-value" id="valQQQ">$—</div>
@@ -627,14 +664,7 @@ function renderDeposits(){
 
 function updateKRW(){
   if(!FX_RATE) return;
-  const spy  = D?.assets?.SPY?.current?.close || 0;
-  const qqq  = D?.assets?.QQQ?.current?.close || 0;
-  const sgov = 100.62;
-  const nSPY  = parseFloat(document.getElementById('inSPY').value)||0;
-  const nQQQ  = parseFloat(document.getElementById('inQQQ').value)||0;
-  const nSGOV = parseFloat(document.getElementById('inSGOV').value)||0;
-  const cash  = parseFloat(document.getElementById('inCASH').value)||0;
-  const total = nSPY*spy + nQQQ*qqq + nSGOV*sgov + cash;
+  const total = getSections().total;
 
   // 원화 장부 기준 (환차손익 포함 실질 손익) — 단일 축
   const depKRW = depositTotal();
@@ -683,36 +713,30 @@ function getSavedPort(){ return JSON.parse(localStorage.getItem(LS.port)||'{}');
 function savePort(){ 
   localStorage.setItem(LS.port, JSON.stringify({
     spy:  parseFloat(document.getElementById('inSPY').value)||0,
+    spym: parseFloat(document.getElementById('inSPYM').value)||0,
     qqq:  parseFloat(document.getElementById('inQQQ').value)||0,
+    qqqm: parseFloat(document.getElementById('inQQQM').value)||0,
     sgov: parseFloat(document.getElementById('inSGOV').value)||0,
     cash: parseFloat(document.getElementById('inCASH').value)||0,
   }));
 }
 function loadPortInputs(){
   const p=getSavedPort();
-  document.getElementById('inSPY').value  = p.spy  ||'';
-  document.getElementById('inQQQ').value  = p.qqq  ||'';
-  document.getElementById('inSGOV').value = p.sgov ||'';
-  document.getElementById('inCASH').value = p.cash ||'';
+  document.getElementById('inSPY').value   = p.spy  ||'';
+  document.getElementById('inSPYM').value  = p.spym ||'';
+  document.getElementById('inQQQ').value   = p.qqq  ||'';
+  document.getElementById('inQQQM').value  = p.qqqm ||'';
+  document.getElementById('inSGOV').value  = p.sgov ||'';
+  document.getElementById('inCASH').value  = p.cash ||'';
 }
 
 function calcPort(){
   savePort();
-  const spy  = D?.assets?.SPY?.current?.close  || 0;
-  const qqq  = D?.assets?.QQQ?.current?.close  || 0;
-  const sgov = 100.62; // SGOV ≈ $100 고정 (데이터 없을 시)
+  const S = getSections();
+  const {vSPY, vQQQ, vSGOV, cash, total} = S;
+  const spy = S.px.SPY, qqq = S.px.QQQ;
 
-  const nSPY  = parseFloat(document.getElementById('inSPY').value)||0;
-  const nQQQ  = parseFloat(document.getElementById('inQQQ').value)||0;
-  const nSGOV = parseFloat(document.getElementById('inSGOV').value)||0;
-  const cash  = parseFloat(document.getElementById('inCASH').value)||0;
-
-  const vSPY  = nSPY  * spy;
-  const vQQQ  = nQQQ  * qqq;
-  const vSGOV = nSGOV * sgov;
-  const total = vSPY + vQQQ + vSGOV + cash;
-
-  // 값 표시
+  // 값 표시 (섹션 합산)
   document.getElementById('valSPY').textContent  = spy  ? fmt(vSPY)  : '—';
   document.getElementById('valQQQ').textContent  = qqq  ? fmt(vQQQ)  : '—';
   document.getElementById('valSGOV').textContent = fmt(vSGOV);
@@ -894,28 +918,26 @@ function renderSignal(){
 
 /* ── 실행 가이드 (트리거 활성화 시 매매 주수 계산) ── */
 function getCurrentHoldings(){
-  // 포트폴리오 현황 입력값 기반 — 시작일이 설정돼 실제 포지션 추적 중이면 그 값을,
-  // 아니면 수동 입력값을 그대로 사용
-  return {
-    spy:  parseFloat(document.getElementById('inSPY')?.value)  || 0,
-    qqq:  parseFloat(document.getElementById('inQQQ')?.value)  || 0,
-    sgov: parseFloat(document.getElementById('inSGOV')?.value) || 0,
-    cash: parseFloat(document.getElementById('inCASH')?.value) || 0,
-  };
+  // 섹션 합산 (SPY+SPYM / QQQ+QQQM) 기반 달러 가치
+  const S = getSections();
+  return {vSPY:S.vSPY, vQQQ:S.vQQQ, vSGOV:S.vSGOV, cash:S.cash, total:S.total};
 }
 
 function renderExecGuide(){
   const a=getAsset(); if(!a){ document.getElementById('execGuideCard').innerHTML=''; return; }
   const c=a.current, sig=c.signal;
-  const spyPrice  = D?.assets?.SPY?.current?.close  || 0;
-  const qqqPrice  = D?.assets?.QQQ?.current?.close  || 0;
-  const sgovPrice = 100.62;
+  const px = getPx();
+  const spyPrice=px.SPY, qqqPrice=px.QQQ, sgovPrice=px.SGOV;
 
   const h = getCurrentHoldings();
-  const vSPY=h.spy*spyPrice, vQQQ=h.qqq*qqqPrice, vSGOV=h.sgov*sgovPrice;
-  const netTotal = vSPY+vQQQ+vSGOV+h.cash;
+  const vSPY=h.vSPY, vQQQ=h.vQQQ, vSGOV=h.vSGOV;
+  const netTotal = h.total;
 
-  const holdingsMissing = (vSPY+vQQQ+vSGOV+h.cash) <= 0;
+  const holdingsMissing = netTotal <= 0;
+
+  // 매수 가이드: 본체 주수 + 저가판(SPYM/QQQM) 대안 병기
+  const spyBuyLbl = v => `+${(spyPrice?v/spyPrice:0).toFixed(3)}주 (SPYM ${(px.SPYM?v/px.SPYM:0).toFixed(2)}주)`;
+  const qqqBuyLbl = v => `+${(qqqPrice?v/qqqPrice:0).toFixed(3)}주 (QQQM ${(px.QQQM?v/px.QQQM:0).toFixed(2)}주)`;
 
   let title='', col=CV.dim, rows=[], note='', warn='';
 
@@ -930,8 +952,8 @@ function renderExecGuide(){
     title=`⚡ ${stepLbl} 진입 실행 가이드`; col='#38c4d8';
     rows=[
       {t:'SGOV', d:`매도 (투입액 ${fmt(invest)})`, q:`-${sellSgovSh.toFixed(2)}주`, neg:true},
-      {t:'SPY',  d:`매수 (2/3 비중)`,               q:`+${buySpySh.toFixed(3)}주`, neg:false},
-      {t:'QQQ',  d:`매수 (1/3 비중)`,               q:`+${buyQqqSh.toFixed(3)}주`, neg:false},
+      {t:'SPY',  d:`매수 (2/3 비중)`,               q:spyBuyLbl(spyBuyVal), neg:false},
+      {t:'QQQ',  d:`매수 (1/3 비중)`,               q:qqqBuyLbl(qqqBuyVal), neg:false},
     ];
     note=`투입액 = 순자산×${sig==='ENTRY3_READY'?'SGOV 잔액 전부':'12%'} (SGOV 보유액 한도 내)<br>SPY/QQQ 매수 시에만 수수료 0.5% 부과 (SGOV 매도는 수수료 없음) — 실제 체결가 기준으로 재계산 권장`;
 
@@ -946,7 +968,7 @@ function renderExecGuide(){
       {t:'QQQ',  d:'목표 20%로 조정', q:`${shQQQ>=0?'+':''}${shQQQ.toFixed(3)}주`, neg:shQQQ<0},
       {t:'SGOV', d:'목표 40%로 조정', q:`${shSGOV>=0?'+':''}${shSGOV.toFixed(3)}주`, neg:shSGOV<0},
     ];
-    note='전술 포지션 전체를 기본 포지션에 통합한 뒤 40:20:40 비중으로 재분배<br>+ 표시는 매수(수수료 0.5%), − 표시는 매도(수수료 없음)';
+    note='전술 포지션 전체를 기본 포지션에 통합한 뒤 40:20:40 비중으로 재분배<br>+ 표시는 매수(수수료 0.5%), − 표시는 매도(수수료 없음)<br>SPY 섹션=SPY+SPYM, QQQ 섹션=QQQ+QQQM 합산 기준 — 매도 시 세금 고려해 유리한 종목부터';
 
   }else if(sig==='REBAL_DOWN1_READY'||sig==='REBAL_DOWN2_READY'){
     const invest = netTotal*0.25;
@@ -957,8 +979,8 @@ function renderExecGuide(){
     title=`💸 하락 리밸 ${stepLbl} 실행 가이드`; col='#a87ef5';
     rows=[
       {t:'외부현금', d:`신규 투입 (순자산×25%)`, q:`${fmt(invest)}`, neg:false, isCash:true},
-      {t:'SPY',  d:'매수 (2/3 비중)', q:`+${buySpySh.toFixed(3)}주`, neg:false},
-      {t:'QQQ',  d:'매수 (1/3 비중)', q:`+${buyQqqSh.toFixed(3)}주`, neg:false},
+      {t:'SPY',  d:'매수 (2/3 비중)', q:spyBuyLbl(spyBuyVal), neg:false},
+      {t:'QQQ',  d:'매수 (1/3 비중)', q:qqqBuyLbl(qqqBuyVal), neg:false},
     ];
     note=`외부현금(계좌 밖 자금)을 새로 투입 — 매도할 자산 없음<br>SPY 평단가 ${fmt(c.spy_avg)} 대비 현재 ${fp(c.spy_loss,true)}`;
     warn='⚠️ 외부현금 투입은 부채 성격 — 다음 완전 리밸 시 우선 상환됩니다';
