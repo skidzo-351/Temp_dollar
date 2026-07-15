@@ -131,11 +131,12 @@ def fetch_daily(symbol_s, symbol_y, days=9000):
         return d
     return []
 
-# DCA 실행용 티커 (신호 계산 X, 최신 종가만 수집)
+# DCA 실행용 티커 + 환율 (신호 계산 X, 최신 종가만 수집)
 QUOTE_TICKERS = {
-    'SPYM': {'stooq': 'spym.us', 'yahoo': 'SPYM', 'name': 'S&P500 저가판 (구 SPLG)'},
-    'QQQM': {'stooq': 'qqqm.us', 'yahoo': 'QQQM', 'name': '나스닥100 저가판'},
-    'SGOV': {'stooq': 'sgov.us', 'yahoo': 'SGOV', 'name': '초단기 국채'},
+    'SPYM':   {'stooq': 'spym.us', 'yahoo': 'SPYM',  'name': 'S&P500 저가판 (구 SPLG)'},
+    'QQQM':   {'stooq': 'qqqm.us', 'yahoo': 'QQQM',  'name': '나스닥100 저가판'},
+    'SGOV':   {'stooq': 'sgov.us', 'yahoo': 'SGOV',  'name': '초단기 국채'},
+    'USDKRW': {'stooq': 'usdkrw',  'yahoo': 'KRW=X', 'name': '원달러 환율'},
 }
 
 def fetch_quote(symbol_s, symbol_y):
