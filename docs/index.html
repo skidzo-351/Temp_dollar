@@ -276,7 +276,7 @@ tr.sim-row td{opacity:.3}
     <div class="fx-banner" id="fxBanner">
       <div>
         <div class="fx-label">USD / KRW 환율</div>
-        <div class="fx-rate" id="fxRate">로딩 중...</div>
+        <div class="fx-rate" id="fxRate" onclick="manualFX()" style="cursor:pointer" title="탭하면 직접 입력">로딩 중...</div>
       </div>
       <div id="fxChange" class="fx-change" style="display:none"></div>
       <div style="width:1px;height:30px;background:var(--b);flex-shrink:0"></div>
@@ -561,8 +561,30 @@ function clearStartDate(){
 }
 
 /* ── 환율 로드 ── */
+// 타임아웃 fetch (AbortSignal.timeout 미지원 브라우저 호환)
+function tFetch(url, ms=6000){
+  if(typeof AbortSignal!=='undefined' && AbortSignal.timeout){
+    return fetch(url, {signal: AbortSignal.timeout(ms)});
+  }
+  const ctrl = new AbortController();
+  setTimeout(()=>ctrl.abort(), ms);
+  return fetch(url, {signal: ctrl.signal});
+}
+
+function applyFX(rate, srcLabel){
+  FX_RATE = rate;
+  let prev = 0;
+  try{ prev = JSON.parse(localStorage.getItem(LS.fx)||'{}').rate||0; }catch(e){}
+  const now = Date.now();
+  localStorage.setItem(LS.fx, JSON.stringify({rate, prev, time:now}));
+  renderFX(rate, prev, now);
+  if(srcLabel){
+    document.getElementById('fxTime').textContent += ` · ${srcLabel}`;
+  }
+}
+
 async function loadFX(){
-  // 캐시 확인 (1시간 이내면 재사용)
+  // ① 캐시 (1시간 이내 재사용)
   try{
     const cached = JSON.parse(localStorage.getItem(LS.fx)||'{}');
     if(cached.rate && cached.time && Date.now()-cached.time < 3600000){
@@ -572,30 +594,55 @@ async function loadFX(){
     }
   }catch(e){}
 
-  // API 1: exchangerate.fun (키 불필요)
-  const urls = [
-    'https://api.exchangerate.fun/latest?base=USD',
-    'https://open.er-api.com/v6/latest/USD',
+  // ② 실시간 API 3종 순차 시도
+  const apis = [
+    {url:'https://open.er-api.com/v6/latest/USD',
+     pick: d => d?.rates?.KRW},
+    {url:'https://api.frankfurter.app/latest?from=USD&to=KRW',
+     pick: d => d?.rates?.KRW},
+    {url:'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json',
+     pick: d => d?.usd?.krw},
   ];
-  for(const url of urls){
+  for(const api of apis){
     try{
-      const r = await fetch(url, {signal: AbortSignal.timeout(5000)});
+      const r = await tFetch(api.url);
       if(!r.ok) continue;
-      const d = await r.json();
-      const rate = d.rates?.KRW || d.conversion_rates?.KRW;
-      if(!rate) continue;
-      FX_RATE = rate;
-      // 이전 캐시에서 prev rate 가져오기
-      let prev = 0;
-      try{ prev = JSON.parse(localStorage.getItem(LS.fx)||'{}').rate||0; }catch(e){}
-      const now = Date.now();
-      localStorage.setItem(LS.fx, JSON.stringify({rate, prev, time:now}));
-      renderFX(rate, prev, now);
-      return;
-    }catch(e){ continue; }
+      const rate = api.pick(await r.json());
+      if(rate && rate>500 && rate<3000){ applyFX(rate); return; }
+    }catch(e){ /* 다음 소스 */ }
   }
-  // 모두 실패 시
-  document.getElementById('fxRate').textContent = '환율 로드 실패';
+
+  // ③ data.json에 실린 전일 환율 (GitHub Actions가 매일 수집)
+  const dj = D?.quotes?.USDKRW?.close;
+  if(dj && dj>500 && dj<3000){
+    applyFX(dj, `전일종가(${D.quotes.USDKRW.date||''})`);
+    return;
+  }
+
+  // ④ 과거 캐시라도 (1시간 초과분)
+  try{
+    const cached = JSON.parse(localStorage.getItem(LS.fx)||'{}');
+    if(cached.rate){
+      FX_RATE = cached.rate;
+      renderFX(cached.rate, cached.prev, cached.time);
+      document.getElementById('fxTime').textContent += ' · 캐시(구버전)';
+      return;
+    }
+  }catch(e){}
+
+  // ⑤ 전부 실패 → 수동 입력 유도
+  const el = document.getElementById('fxRate');
+  el.textContent = '환율 로드 실패 — 탭해서 직접 입력';
+  el.style.cursor = 'pointer';
+}
+
+function manualFX(){
+  const cur = FX_RATE ? Math.round(FX_RATE) : 1400;
+  const v = prompt('현재 원달러 환율을 입력하세요 (원)', cur);
+  const rate = parseFloat(v);
+  if(rate && rate>500 && rate<3000){
+    applyFX(rate, '수동입력');
+  }
 }
 
 function renderFX(rate, prev, time){
