@@ -1263,16 +1263,34 @@ function togglePanel(ph){
 }
 
 /* ── 메인 ── */
+function safeRun(fn, name){
+  try{ fn(); }
+  catch(e){
+    console.error(`[${name}]`, e);
+    showErrBanner(`${name}: ${e.message}`);
+  }
+}
+function showErrBanner(msg){
+  let el = document.getElementById('errBanner');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'errBanner';
+    el.style.cssText = 'background:rgba(224,91,75,.12);border:1px solid rgba(224,91,75,.4);color:#e05b4b;font-family:var(--mono);font-size:10px;padding:7px 12px;border-radius:5px;margin-bottom:10px;word-break:break-all';
+    const app = document.getElementById('app');
+    app.insertBefore(el, app.firstChild);
+  }
+  el.textContent = '⚠️ 일부 기능 오류: ' + msg;
+}
 function renderAll(){
-  renderPositionCard();
-  renderSignal();
-  drawPriceChart();
-  drawDivChart();
-  renderRealLog();
-  renderSimLog();
-  renderParams();
-  calcPort();
-  renderExecGuide();
+  safeRun(renderPositionCard, 'positionCard');
+  safeRun(renderSignal,       'signal');
+  safeRun(drawPriceChart,     'priceChart');
+  safeRun(drawDivChart,       'divChart');
+  safeRun(renderRealLog,      'realLog');
+  safeRun(renderSimLog,       'simLog');
+  safeRun(renderParams,       'params');
+  safeRun(calcPort,           'portfolio');
+  safeRun(renderExecGuide,    'execGuide');
 }
 function sw(t,btn){
   curTicker=t;
@@ -1294,10 +1312,10 @@ async function init(){
     document.getElementById('loading').style.display='none';
     document.getElementById('app').style.display='block';
     updateStartBanner();
-    loadPortInputs();
-    renderDeposits();
+    loadFX();                       // 환율 최우선 (렌더 에러와 무관하게)
+    safeRun(loadPortInputs, 'loadInputs');
+    safeRun(renderDeposits, 'deposits');
     renderAll();
-    loadFX();
     // 30분마다 환율 자동 갱신
     setInterval(loadFX, 30*60*1000);
   }catch(e){
