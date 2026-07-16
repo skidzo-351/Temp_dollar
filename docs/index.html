@@ -65,30 +65,6 @@ main{max-width:1080px;margin:0 auto;padding:14px 20px 80px}
 .pa-input{background:var(--bg);border:1px solid var(--b);color:var(--text);font-family:var(--mono);font-size:12px;padding:3px 6px;border-radius:3px;width:80px;outline:none}
 .pa-sub-tk{font-family:var(--mono);font-size:9px;font-weight:700;width:38px;flex-shrink:0}
 
-/* ── 시세 헬퍼 (SPYM/QQQM/SGOV는 data.json quotes, 실패 시 근사치) ── */
-function getPx(){
-  const spy = D?.assets?.SPY?.current?.close || 0;
-  const qqq = D?.assets?.QQQ?.current?.close || 0;
-  const q = D?.quotes || {};
-  return {
-    SPY: spy, QQQ: qqq,
-    SPYM: q.SPYM?.close || (spy ? spy/8.8  : 0),   // SPY의 약 1/8.8
-    QQQM: q.QQQM?.close || (qqq ? qqq/2.46 : 0),   // QQQ의 약 1/2.46
-    SGOV: q.SGOV?.close || 100.62,
-  };
-}
-function getSections(){
-  const px = getPx();
-  const g = id => parseFloat(document.getElementById(id)?.value)||0;
-  const nSPY=g('inSPY'), nSPYM=g('inSPYM'), nQQQ=g('inQQQ'), nQQQM=g('inQQQM');
-  const nSGOV=g('inSGOV'), cash=g('inCASH');
-  const vSPY  = nSPY*px.SPY + nSPYM*px.SPYM;   // SPY 섹션 = SPY + SPYM
-  const vQQQ  = nQQQ*px.QQQ + nQQQM*px.QQQM;   // QQQ 섹션 = QQQ + QQQM
-  const vSGOV = nSGOV*px.SGOV;
-  return {px, nSPY, nSPYM, nQQQ, nQQQM, nSGOV, cash,
-          vSPY, vQQQ, vSGOV, total: vSPY+vQQQ+vSGOV+cash};
-}
-
 /* ── 원화 입금 장부 ── */
 .dep-wrap{background:rgba(0,0,0,.18);border:1px solid var(--b);border-radius:5px;padding:10px 13px;margin:10px 0}
 .dep-head{display:flex;justify-content:space-between;align-items:center;cursor:pointer}
@@ -664,6 +640,30 @@ function renderFX(rate, prev, time){
 }
 
 /* ── 원화 입금 장부 ── */
+/* ── 시세 헬퍼 (SPYM/QQQM/SGOV는 data.json quotes, 실패 시 근사치) ── */
+function getPx(){
+  const spy = D?.assets?.SPY?.current?.close || 0;
+  const qqq = D?.assets?.QQQ?.current?.close || 0;
+  const q = D?.quotes || {};
+  return {
+    SPY: spy, QQQ: qqq,
+    SPYM: q.SPYM?.close || (spy ? spy/8.8  : 0),   // SPY의 약 1/8.8
+    QQQM: q.QQQM?.close || (qqq ? qqq/2.46 : 0),   // QQQ의 약 1/2.46
+    SGOV: q.SGOV?.close || 100.62,
+  };
+}
+function getSections(){
+  const px = getPx();
+  const g = id => parseFloat(document.getElementById(id)?.value)||0;
+  const nSPY=g('inSPY'), nSPYM=g('inSPYM'), nQQQ=g('inQQQ'), nQQQM=g('inQQQM');
+  const nSGOV=g('inSGOV'), cash=g('inCASH');
+  const vSPY  = nSPY*px.SPY + nSPYM*px.SPYM;   // SPY 섹션 = SPY + SPYM
+  const vQQQ  = nQQQ*px.QQQ + nQQQM*px.QQQM;   // QQQ 섹션 = QQQ + QQQM
+  const vSGOV = nSGOV*px.SGOV;
+  return {px, nSPY, nSPYM, nQQQ, nQQQM, nSGOV, cash,
+          vSPY, vQQQ, vSGOV, total: vSPY+vQQQ+vSGOV+cash};
+}
+
 function getDeposits(){ try{ return JSON.parse(localStorage.getItem(LS.dep)||'[]'); }catch(e){ return []; } }
 function depositTotal(){ return getDeposits().reduce((s,d)=>s+(d.w||0),0); }
 function addDeposit(){
